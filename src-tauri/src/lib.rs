@@ -1,6 +1,7 @@
 pub mod art;
 pub mod commands;
 pub mod config;
+pub mod crosshair;
 pub mod display;
 pub mod engine;
 pub mod layout_book;
@@ -112,7 +113,11 @@ pub fn run() {
         )
         .setup(move |app| {
             let config_path = store::config_path();
-            let config = store::load(&config_path);
+            let mut config = store::load(&config_path);
+            if config.seed_crosshairs()
+                && let Err(e) = store::save(&config_path, &config) {
+                    log::warn!("cannot save seeded crosshairs: {e}");
+                }
             let display = Arc::new(Win32Display::new());
             let (tx, rx) = mpsc::channel::<Input>();
 

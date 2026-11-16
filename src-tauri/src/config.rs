@@ -2,6 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::crosshair::director::CrosshairRule;
+use crate::crosshair::model::Crosshair;
+use crate::crosshair::presets::presets;
 use crate::display::{default_resolution, DisplayMode};
 use crate::engine::GameRule;
 
@@ -16,12 +19,25 @@ pub struct GameEntry {
     pub height: u32,
     pub enabled: bool,
     pub keep_stretched: bool,
+    /// Crosshair drawn over this game; `None` = no REZ crosshair.
+    pub crosshair_id: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub autostart: bool,
+    /// The five presets were offered once already (deleting them all must not bring them back).
+    pub crosshairs_seeded: bool,
+    /// Keep the crosshair square on screen when the game is stretched.
+    pub crosshair_undistort: bool,
+    pub hide_crosshair_with_faceit: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings { autostart: false, crosshairs_seeded: false, crosshair_undistort: true, hide_crosshair_with_faceit: true }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -30,11 +46,12 @@ pub struct Config {
     pub version: u32,
     pub games: Vec<GameEntry>,
     pub settings: Settings,
+    pub crosshairs: Vec<Crosshair>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { version: 1, games: Vec::new(), settings: Settings::default() }
+        Config { version: 1, games: Vec::new(), settings: Settings::default(), crosshairs: Vec::new() }
     }
 }
 
@@ -64,6 +81,7 @@ impl GameEntry {
             height,
             enabled: true,
             keep_stretched: false,
+            crosshair_id: None,
         }
     }
 }
@@ -91,6 +109,50 @@ impl Config {
         let before = self.games.len();
         self.games.retain(|g| g.id != id);
         if self.games.len() == before { Err(ConfigError::NotFound(id.to_string())) } else { Ok(()) }
+    }
+
+    /// Adds the five presets the first time; returns true if the config changed.
+    pub fn seed_crosshairs(&mut self) -> bool {
+        if self.settings.crosshairs_seeded {
+            return false;
+        }
+        self.crosshairs.extend(presets());
+        self.settings.crosshairs_seeded = true;
+        true
+    }
+
+    /// Replaces the crosshair with the same id, or appends it.
+    pub fn upsert_crosshair(&mut self, crosshair: Crosshair) {
+        match self.crosshairs.iter_mut().find(|c| c.id == crosshair.id) {
+            Some(slot) => *slot = crosshair,
+            None => self.crosshairs.push(crosshair),
+        }
+    }
+
+    /// Deletes a crosshair; games that used it go back to "no crosshair".
+    pub fn delete_crosshair(&mut self, id: &str) -> Result<(), ConfigError> {
+        let before = self.crosshairs.len();
+        self.crosshairs.retain(|c| c.id != id);
+        if self.crosshairs.len() == before {
+            return Err(ConfigError::NotFound(id.to_string()));
+        }
+        for g in self.games.iter_mut().filter(|g| g.crosshair_id.as_deref() == Some(id)) {
+            g.crosshair_id = None;
+        }
+        Ok(())
+    }
+
+    /// Overlay rules: enabled games whose crosshair exists.
+    pub fn crosshair_rules(&self) -> Vec<CrosshairRule> {
+        self.games
+            .iter()
+            .filter(|g| g.enabled)
+            .filter_map(|g| {
+                let id = g.crosshair_id.as_deref()?;
+                let crosshair = self.crosshairs.iter().find(|c| c.id == id)?.clone();
+                Some(CrosshairRule { exe_name_lower: g.exe_name.to_lowercase(), crosshair })
+            })
+            .collect()
     }
 
     /// Engine rules for enabled games only.
@@ -148,6 +210,73 @@ mod tests {
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].exe_name_lower, "cs2.exe");
         assert_eq!(rules[0].id, "cs2.exe");
+    }
+
+    #[test]
+    fn seed_adds_presets_once() {
+        let mut c = Config::default();
+        assert!(c.seed_crosshairs());
+        assert_eq!(c.crosshairs.len(), 5);
+        let ids: Vec<String> = c.crosshairs.iter().map(|x| x.id.clone()).collect();
+        for id in ids {
+            c.delete_crosshair(&id).unwrap();
+        }
+        assert!(!c.seed_crosshairs());
+        assert!(c.crosshairs.is_empty());
+    }
+
+    #[test]
+    fn deleting_crosshair_unassigns_games() {
+        let mut c = Config::default();
+        c.seed_crosshairs();
+        let mut g = GameEntry::from_exe_path(r"C:\A\cs2.exe", &[], m(1920, 1080, 60));
+        g.crosshair_id = Some("preset-t".into());
+        c.add_game(g).unwrap();
+        c.delete_crosshair("preset-t").unwrap();
+        assert_eq!(c.games[0].crosshair_id, None);
+        assert_eq!(c.delete_crosshair("nope"), Err(ConfigError::NotFound("nope".into())));
+    }
+
+    #[test]
+    fn crosshair_rules_resolve_ids() {
+        let mut c = Config::default();
+        c.seed_crosshairs();
+        let mut on = GameEntry::from_exe_path(r"C:\A\CS2.exe", &[], m(1920, 1080, 60));
+        on.crosshair_id = Some("preset-point".into());
+        let mut off = GameEntry::from_exe_path(r"C:\B\rust.exe", &[], m(1920, 1080, 60));
+        off.crosshair_id = Some("preset-point".into());
+        off.enabled = false;
+        let mut unknown = GameEntry::from_exe_path(r"C:\C\other.exe", &[], m(1920, 1080, 60));
+        unknown.crosshair_id = Some("ghost".into());
+        for g in [on, off, unknown] {
+            c.add_game(g).unwrap();
+        }
+        let rules = c.crosshair_rules();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].exe_name_lower, "cs2.exe");
+        assert_eq!(rules[0].crosshair.name, "Point");
+    }
+
+    #[test]
+    fn upsert_replaces_by_id() {
+        let mut c = Config::default();
+        c.seed_crosshairs();
+        let mut x = c.crosshairs[0].clone();
+        x.name = "Renommé".into();
+        c.upsert_crosshair(x);
+        assert_eq!(c.crosshairs.len(), 5);
+        assert_eq!(c.crosshairs[0].name, "Renommé");
+    }
+
+    #[test]
+    fn v1_config_gets_crosshair_defaults() {
+        let json = r#"{"version":1,"games":[{"id":"cs2.exe","exeName":"cs2.exe","width":1280,"height":960,"enabled":true}],"settings":{"autostart":false}}"#;
+        let c: Config = serde_json::from_str(json).unwrap();
+        assert!(c.crosshairs.is_empty());
+        assert!(!c.settings.crosshairs_seeded);
+        assert!(c.settings.crosshair_undistort);
+        assert!(c.settings.hide_crosshair_with_faceit);
+        assert_eq!(c.games[0].crosshair_id, None);
     }
 
     #[test]
