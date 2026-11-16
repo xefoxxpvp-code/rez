@@ -36,6 +36,10 @@ pub trait DisplayApi: Send + Sync {
     fn apply_temporary(&self, device: &str, mode: DisplayMode) -> Result<(), DisplayError>;
     /// Returns the device to its registry (native) mode.
     fn restore(&self, device: &str) -> Result<(), DisplayError>;
+    /// Remembers the current multi-monitor topology (which monitors are on the desktop, and where).
+    fn save_topology(&self) -> Result<(), DisplayError>;
+    /// Puts back the topology remembered by [`DisplayApi::save_topology`].
+    fn restore_topology(&self) -> Result<(), DisplayError>;
 }
 
 fn is_4_3(width: u32, height: u32) -> bool {

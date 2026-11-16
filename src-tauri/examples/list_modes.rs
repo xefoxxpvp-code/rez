@@ -3,7 +3,8 @@ use rez_lib::display::{distinct_resolutions, DisplayApi};
 use rez_lib::win::display::Win32Display;
 
 fn main() {
-    let d = Win32Display;
+    let d = Win32Display::new();
+    println!("save_topology (read-only query): {:?}", d.save_topology());
     for mon in d.list_monitors().expect("list_monitors") {
         println!("{} | {} | primary={}", mon.device, mon.label, mon.primary);
         println!("  registry: {:?}", d.registry_mode(&mon.device));

@@ -12,9 +12,46 @@ use windows::Win32::Graphics::Gdi::{
     ENUM_REGISTRY_SETTINGS,
 };
 
+use windows::Win32::Devices::Display::{
+    GetDisplayConfigBufferSizes, QueryDisplayConfig, SetDisplayConfig, DISPLAYCONFIG_MODE_INFO,
+    DISPLAYCONFIG_PATH_INFO, QDC_ONLY_ACTIVE_PATHS, SDC_ALLOW_CHANGES, SDC_APPLY, SDC_TOPOLOGY_EXTEND,
+    SDC_USE_SUPPLIED_DISPLAY_CONFIG,
+};
+use std::sync::Mutex;
+
 use crate::display::{DisplayApi, DisplayError, DisplayMode, MonitorInfo};
 
-pub struct Win32Display;
+type Topology = (Vec<DISPLAYCONFIG_PATH_INFO>, Vec<DISPLAYCONFIG_MODE_INFO>);
+
+#[derive(Default)]
+pub struct Win32Display {
+    saved_topology: Mutex<Option<Topology>>,
+}
+
+impl Win32Display {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+fn query_topology() -> Result<Topology, DisplayError> {
+    unsafe {
+        let (mut np, mut nm) = (0u32, 0u32);
+        let err = GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut np, &mut nm);
+        if err.is_err() {
+            return Err(DisplayError::Win32(format!("GetDisplayConfigBufferSizes: {err:?}")));
+        }
+        let mut paths = vec![DISPLAYCONFIG_PATH_INFO::default(); np as usize];
+        let mut modes = vec![DISPLAYCONFIG_MODE_INFO::default(); nm as usize];
+        let err = QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &mut np, paths.as_mut_ptr(), &mut nm, modes.as_mut_ptr(), None);
+        if err.is_err() {
+            return Err(DisplayError::Win32(format!("QueryDisplayConfig: {err:?}")));
+        }
+        paths.truncate(np as usize);
+        modes.truncate(nm as usize);
+        Ok((paths, modes))
+    }
+}
 
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
@@ -160,5 +197,34 @@ impl DisplayApi for Win32Display {
     fn restore(&self, device: &str) -> Result<(), DisplayError> {
         let code = change(device, None, CDS_TYPE(0));
         if code == DISP_CHANGE_SUCCESSFUL.0 { Ok(()) } else { Err(DisplayError::Rejected(code)) }
+    }
+
+    fn save_topology(&self) -> Result<(), DisplayError> {
+        let topology = query_topology()?;
+        *self.saved_topology.lock().map_err(|_| DisplayError::Win32("poisoned".into()))? = Some(topology);
+        Ok(())
+    }
+
+    fn restore_topology(&self) -> Result<(), DisplayError> {
+        let saved = self.saved_topology.lock().map_err(|_| DisplayError::Win32("poisoned".into()))?.clone();
+        let Some((paths, modes)) = saved else {
+            return Err(DisplayError::Win32("aucune configuration d'écrans enregistrée".into()));
+        };
+        let code = unsafe {
+            SetDisplayConfig(Some(&paths), Some(&modes), SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES)
+        };
+        if code == 0 {
+            return Ok(());
+        }
+        log::warn!("SetDisplayConfig(saved) failed with {code}");
+        // The saved path ids can be stale after a hot-unplug: fall back to an extended desktop.
+        if paths.len() >= 2 {
+            let code = unsafe { SetDisplayConfig(None, None, SDC_APPLY | SDC_TOPOLOGY_EXTEND) };
+            if code == 0 {
+                return Ok(());
+            }
+            return Err(DisplayError::Rejected(code));
+        }
+        Err(DisplayError::Rejected(code))
     }
 }

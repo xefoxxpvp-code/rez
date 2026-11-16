@@ -4,7 +4,7 @@ use rez_lib::display::{default_resolution, pick_mode, DisplayApi};
 use rez_lib::win::display::Win32Display;
 
 fn main() {
-    let d = Win32Display;
+    let d = Win32Display::new();
     let primary = d
         .list_monitors()
         .expect("list_monitors")

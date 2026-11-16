@@ -38,7 +38,7 @@ fn timeline(d: &Win32Display, t0: Instant, secs: u64) {
 fn main() {
     let a: Vec<String> = std::env::args().collect();
     let (device, w, h, hint, hold) = (&a[1], a[2].parse().unwrap(), a[3].parse().unwrap(), a[4] == "hint", a[5].parse().unwrap());
-    let d = Win32Display;
+    let d = Win32Display::new();
     let native = d.registry_mode(device).expect("registry_mode");
     let name: Vec<u16> = device.encode_utf16().chain(Some(0)).collect();
     let mut dm = DEVMODEW { dmSize: std::mem::size_of::<DEVMODEW>() as u16, ..Default::default() };
