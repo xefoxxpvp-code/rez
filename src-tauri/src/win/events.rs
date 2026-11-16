@@ -28,11 +28,10 @@ const WTS_SESSION_UNLOCK: usize = 0x8;
 static TX: OnceLock<Mutex<Sender<Input>>> = OnceLock::new();
 
 fn send(input: Input) {
-    if let Some(tx) = TX.get() {
-        if let Ok(tx) = tx.lock() {
+    if let Some(tx) = TX.get()
+        && let Ok(tx) = tx.lock() {
             let _ = tx.send(input);
         }
-    }
 }
 
 fn exe_name_of(pid: u32) -> String {

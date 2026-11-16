@@ -123,14 +123,13 @@ impl Runtime {
     pub fn tick(&mut self, now: Instant) {
         let actions = self.engine.tick(now);
         self.execute(actions, now);
-        if self.guard_until.is_some_and(|t| now >= t) {
-            if !self.check_topology(now) {
+        if self.guard_until.is_some_and(|t| now >= t)
+            && !self.check_topology(now) {
                 self.guard_until = None;
                 if self.engine.active_monitor().is_none() {
                     self.guard_devices.clear();
                 }
             }
-        }
     }
 
     /// Earliest of the engine's leave deadline and the topology guard deadline.

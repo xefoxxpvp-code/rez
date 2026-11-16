@@ -148,11 +148,10 @@ fn restore_windows(windows: &[(isize, WINDOWPLACEMENT)]) {
     for (raw, wp) in windows {
         let hwnd = HWND(*raw as *mut _);
         unsafe {
-            if IsWindow(Some(hwnd)).as_bool() {
-                if let Err(e) = SetWindowPlacement(hwnd, wp) {
+            if IsWindow(Some(hwnd)).as_bool()
+                && let Err(e) = SetWindowPlacement(hwnd, wp) {
                     log::debug!("SetWindowPlacement failed: {e}");
                 }
-            }
         }
     }
 }

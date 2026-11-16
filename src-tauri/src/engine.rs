@@ -138,8 +138,8 @@ impl Engine {
         };
 
         // Back to the game that is already applied on this monitor: cancel any pending leave.
-        if let Some(a) = self.active.as_mut() {
-            if a.game_id == rule.id && a.monitor == monitor {
+        if let Some(a) = self.active.as_mut()
+            && a.game_id == rule.id && a.monitor == monitor {
                 a.leave_deadline = None;
                 if a.pid != pid {
                     a.pid = pid;
@@ -147,7 +147,6 @@ impl Engine {
                 }
                 return Vec::new();
             }
-        }
 
         let Some(mode) = crate::display::pick_mode(&modes, rule.width, rule.height, native.refresh_hz) else {
             self.start_leave(now);
@@ -186,11 +185,10 @@ impl Engine {
     }
 
     fn start_leave(&mut self, now: Instant) {
-        if let Some(a) = self.active.as_mut() {
-            if !a.keep_stretched && a.leave_deadline.is_none() {
+        if let Some(a) = self.active.as_mut()
+            && !a.keep_stretched && a.leave_deadline.is_none() {
                 a.leave_deadline = Some(now + LEAVE_DEBOUNCE);
             }
-        }
     }
 
     fn on_rules_changed(&mut self) -> Vec<Action> {
