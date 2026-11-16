@@ -36,23 +36,31 @@ export default function Games({ config, resolutions, screen, status, onChanged }
     <button
       type="button"
       onClick={() => void add()}
-      className="rounded-md border border-line px-3 py-1.5 font-semibold hover:border-ink"
+      className="h-11 shrink-0 rounded-full bg-white px-5 text-xs font-extrabold uppercase tracking-wide text-black transition-colors hover:bg-blue-500 hover:text-white"
     >
       {t("games.add")}
     </button>
   );
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-5">
       {config.games.length === 0 ? (
-        <div className="max-w-[60ch] py-6">
-          <h2 className="m-0 font-display text-2xl font-semibold">{t("games.emptyTitle")}</h2>
-          <p className="mb-4 mt-2 text-muted">{t("games.emptyBody")}</p>
+        <div className="max-w-[60ch] pt-4">
+          <h2 className="display m-0 text-[36px] leading-[40px]">
+            {t("games.emptyTitleStart")} <span className="display-accent">{t("games.emptyTitleEnd")}</span>
+          </h2>
+          <p className="mb-6 mt-3 text-base leading-relaxed text-zinc-400">{t("games.emptyBody")}</p>
           {addButton}
         </div>
       ) : (
         <>
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          <div className="flex items-end justify-between gap-4">
+            <h2 className="display m-0 text-[36px] leading-[40px]">
+              {t("games.titleStart")} <span className="display-accent">{t("games.titleEnd")}</span>
+            </h2>
+            {addButton}
+          </div>
+          <ul className="m-0 flex list-none flex-col gap-3 p-0">
             {config.games.map((g) => (
               <GameCard
                 key={g.id}
@@ -65,11 +73,10 @@ export default function Games({ config, resolutions, screen, status, onChanged }
               />
             ))}
           </ul>
-          <div>{addButton}</div>
         </>
       )}
       {error ? (
-        <p role="alert" className="m-0 text-danger">
+        <p role="alert" className="m-0 rounded-xl bg-red-500/10 px-4 py-3 text-red-500">
           {error}
         </p>
       ) : null}

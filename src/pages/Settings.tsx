@@ -8,14 +8,23 @@ interface Props {
   onChanged: () => void;
 }
 
+function Key({ children }: { children: string }) {
+  return (
+    <kbd className="rounded-lg bg-white/[0.06] px-2 py-1 font-sans text-[10px] font-black uppercase tracking-wider text-white">
+      {children}
+    </kbd>
+  );
+}
+
 export default function Settings({ config, onChanged }: Props) {
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
+  const on = config.settings.autostart;
 
-  const toggleAutostart = async (enabled: boolean) => {
+  const toggleAutostart = async () => {
     setError(null);
     try {
-      await setAutostart(enabled);
+      await setAutostart(!on);
     } catch (err) {
       setError(String(err));
     }
@@ -23,29 +32,51 @@ export default function Settings({ config, onChanged }: Props) {
   };
 
   return (
-    <section className="flex max-w-[64ch] flex-col gap-6">
-      <div>
-        <label className="flex items-center gap-2 font-semibold">
-          <input
-            type="checkbox"
-            className="accent-signal"
-            checked={config.settings.autostart}
-            onChange={(e) => void toggleAutostart(e.target.checked)}
-          />
-          {t("settings.autostart")}
-        </label>
-        <p className="m-0 mt-1 pl-6 text-muted">{t("settings.autostartHint")}</p>
+    <section className="flex max-w-[680px] flex-col gap-5">
+      <h2 className="display m-0 text-[36px] leading-[40px]">
+        {t("settings.titleStart")} <span className="display-accent">{t("settings.titleEnd")}</span>
+      </h2>
+
+      <div className="rounded-[24px] bg-white/[0.03] p-2.5">
+        <div className="flex items-center justify-between gap-4 px-2.5 py-2.5">
+          <div>
+            <p className="m-0 font-semibold text-white">{t("settings.autostart")}</p>
+            <p className="m-0 text-zinc-500">{t("settings.autostartHint")}</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            aria-label={t("settings.autostart")}
+            onClick={() => void toggleAutostart()}
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${on ? "bg-primary" : "bg-white/10"}`}
+          >
+            <span
+              aria-hidden="true"
+              className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-[left] duration-150 ${on ? "left-6" : "left-1"}`}
+            />
+          </button>
+        </div>
         {error ? (
-          <p role="alert" className="m-0 mt-1 pl-6 text-danger">
+          <p role="alert" className="m-0 px-2.5 pb-2.5 text-red-500">
             {error}
           </p>
         ) : null}
+        <div className="flex items-center justify-between gap-4 px-2.5 py-2.5">
+          <div>
+            <p className="m-0 font-semibold text-white">{t("settings.hotkeyTitle")}</p>
+            <p className="m-0 text-zinc-500">{t("settings.hotkey")}</p>
+          </div>
+          <span className="flex shrink-0 gap-1">
+            <Key>Ctrl</Key>
+            <Key>Alt</Key>
+            <Key>Shift</Key>
+            <Key>R</Key>
+          </span>
+        </div>
       </div>
-      <div>
-        <h2 className="m-0 font-display text-lg font-semibold">{t("settings.hotkeyTitle")}</h2>
-        <p className="m-0 mt-1 text-muted">{t("settings.hotkey")}</p>
-      </div>
-      <p className="m-0 text-muted">{t("settings.trayHint")}</p>
+
+      <p className="m-0 leading-relaxed text-zinc-400">{t("settings.trayHint")}</p>
     </section>
   );
 }

@@ -143,7 +143,7 @@ Deux conditions :
 
 ## Interface (React + TS + Tailwind, FR/EN avec react-i18next)
 
-Style par défaut : sombre, sobre, orienté gaming. Le DESIGN.md présent (Poseidon Scans) n'est pas utilisé.
+Style : langage visuel de DESIGN.md (voir « Décisions prises »).
 
 ```
 ┌ Jeux ─ Crosshair ─ Réglages ───────────────────────┐
@@ -212,7 +212,7 @@ src-tauri/
   - Chaque profil essaie d'abord le borderless, pour avoir l'étirement et le crosshair.
   - Si un jeu ne s'étire qu'en plein écran exclusif, le profil utilise ce mode. Il affiche alors « crosshair REZ indisponible dans ce jeu, utilise celui du jeu » dans la carte du jeu, et l'overlay reste désactivé pour ce jeu.
 - **Pas de mode de secours** « copie étirée de la fenêtre » en v1.
-- **Style de l'interface** (mon choix) : sombre, sobre, gaming. DESIGN.md (Poseidon Scans) n'est pas utilisé.
+- **Style de l'interface** (décision de l'utilisateur, 2026-11-16) : langage visuel de DESIGN.md — noir pur, surfaces blanches translucides, Fira Sans seule (titres 900 majuscules en italique synthétique, fin en dégradé bleu), bleu pour la marque et la navigation, pas d'or (réservé au Premium dans la référence). Aucun nom ni logo de la référence n'est repris.
 
 ## Vérification
 

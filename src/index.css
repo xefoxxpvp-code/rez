@@ -1,15 +1,16 @@
 @import "tailwindcss";
 
+/* Visual language from DESIGN.md: pure black, white-alpha surfaces, Fira Sans only
+   (synthetic italic, never the real italic face), blue for brand and navigation. */
 @theme {
-  --color-base: #1d2127;
-  --color-panel: #252a32;
-  --color-line: #343a45;
-  --color-ink: #e7e9ec;
-  --color-muted: #8d95a3;
-  --color-signal: #f2b33d;
-  --color-danger: #ef5b5f;
-  --font-display: "Barlow Semi Condensed", "Segoe UI Variable Display", system-ui, sans-serif;
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --color-primary: #0f2eb5;
+  --color-primary-hover: #1a3cc7;
+  --color-tertiary: #4d7fff;
+  --font-sans: "Fira Sans", system-ui, sans-serif;
+}
+
+html {
+  color-scheme: dark;
 }
 
 html,
@@ -20,17 +21,55 @@ body,
 
 body {
   margin: 0;
-  background: var(--color-base);
-  color: var(--color-ink);
+  background: #000;
+  color: #fff;
   font-family: var(--font-sans);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 20px;
   -webkit-font-smoothing: antialiased;
 }
 
+::selection {
+  background: rgb(59 130 246 / 0.3);
+}
+
 :focus-visible {
-  outline: 2px solid var(--color-signal);
+  outline: 2px solid rgb(96 165 250 / 0.7);
   outline-offset: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgb(255 255 255 / 0.02);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.15);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(37 99 235 / 0.5);
+}
+
+/* Poster titles: Fira Sans 900, uppercase, synthetic italic, tight. */
+.display {
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  padding-right: 0.15em;
+}
+
+/* Gradient ending of a poster title (DESIGN.md "Mot en dégradé" recipe). */
+.display-accent {
+  display: inline-block;
+  margin: -0.2em -0.18em -0.2em 0;
+  padding: 0.2em 0.18em 0.2em 0;
+  background: linear-gradient(to right, #60a5fa, #2563eb);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {

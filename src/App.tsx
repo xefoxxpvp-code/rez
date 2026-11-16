@@ -39,29 +39,38 @@ export default function App() {
   const screen = display ? { width: display.native.width, height: display.native.height } : { width: 16, height: 9 };
 
   const tabClass = (name: Tab) =>
-    `border-b-2 px-1 pb-2 font-display text-[17px] font-semibold ${
-      tab === name ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"
+    `relative inline-flex h-11 items-center rounded-full px-4 text-[13px] font-bold uppercase tracking-wide transition-colors ${
+      tab === name ? "bg-white/10 text-white" : "text-zinc-400 hover:text-white"
     }`;
 
   return (
-    <div className="flex h-full flex-col">
-      <StatusBar status={status} games={config?.games ?? []} screen={screen} />
-      <nav className="flex gap-6 px-6 pt-5" aria-label="REZ">
-        <button type="button" className={tabClass("games")} aria-current={tab === "games"} onClick={() => setTab("games")}>
-          {t("tabs.games")}
-        </button>
-        <button
-          type="button"
-          className={tabClass("settings")}
-          aria-current={tab === "settings"}
-          onClick={() => setTab("settings")}
-        >
-          {t("tabs.settings")}
-        </button>
-      </nav>
-      <main className="flex-1 overflow-y-auto px-6 py-5">
+    <div className="relative flex h-full flex-col overflow-hidden bg-black">
+      {/* Soft brand halo behind the header (DESIGN.md "Halos"). */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-32 -top-24 h-80 w-80"
+        style={{ background: "radial-gradient(closest-side, rgba(37,99,235,.2), transparent)" }}
+      />
+      <header className="relative z-10 flex items-center justify-between gap-4 px-8 pt-6">
+        <p className="display m-0 text-[28px] leading-none">REZ</p>
+        <nav className="flex gap-1 rounded-full bg-white/[0.04] p-1" aria-label="REZ">
+          <button type="button" className={tabClass("games")} aria-current={tab === "games"} onClick={() => setTab("games")}>
+            {t("tabs.games")}
+          </button>
+          <button
+            type="button"
+            className={tabClass("settings")}
+            aria-current={tab === "settings"}
+            onClick={() => setTab("settings")}
+          >
+            {t("tabs.settings")}
+          </button>
+        </nav>
+      </header>
+      <main className="custom-scrollbar relative z-10 flex flex-1 flex-col gap-8 overflow-y-auto px-8 pb-8 pt-6">
+        <StatusBar status={status} games={config?.games ?? []} screen={screen} />
         {loadError ? (
-          <p role="alert" className="m-0 mb-3 text-danger">
+          <p role="alert" className="m-0 rounded-xl bg-red-500/10 px-4 py-3 text-red-500">
             {loadError}
           </p>
         ) : null}
