@@ -45,7 +45,7 @@ pub enum Action {
 #[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum StatusEvent {
     Idle,
-    Active { game_id: String, width: u32, height: u32 },
+    Active { game_id: String, width: u32, height: u32, refresh_hz: u32 },
     ModeUnavailable { game_id: String, width: u32, height: u32 },
     Error { message: String },
 }
@@ -232,7 +232,12 @@ impl Engine {
 }
 
 fn active_status(a: &ActiveState) -> StatusEvent {
-    StatusEvent::Active { game_id: a.game_id.clone(), width: a.mode.width, height: a.mode.height }
+    StatusEvent::Active {
+        game_id: a.game_id.clone(),
+        width: a.mode.width,
+        height: a.mode.height,
+        refresh_hz: a.mode.refresh_hz,
+    }
 }
 
 #[cfg(test)]
@@ -288,7 +293,7 @@ mod tests {
                 SaveDesktopLayout { monitor: D1.into() },
                 Apply { monitor: D1.into(), mode: m(1440, 1080, 240) },
                 WatchProcess { pid: 10 },
-                Status(StatusEvent::Active { game_id: "valorant".into(), width: 1440, height: 1080 }),
+                Status(StatusEvent::Active { game_id: "valorant".into(), width: 1440, height: 1080, refresh_hz: 240 }),
             ]
         );
         assert_eq!(e.active_monitor(), Some(D1));
@@ -334,7 +339,7 @@ mod tests {
             vec![
                 Apply { monitor: D1.into(), mode: m(1280, 960, 240) },
                 WatchProcess { pid: 20 },
-                Status(StatusEvent::Active { game_id: "cs2".into(), width: 1280, height: 960 }),
+                Status(StatusEvent::Active { game_id: "cs2".into(), width: 1280, height: 960, refresh_hz: 240 }),
             ]
         );
     }
@@ -351,7 +356,7 @@ mod tests {
                 SaveDesktopLayout { monitor: D2.into() },
                 Apply { monitor: D2.into(), mode: m(1280, 960, 240) },
                 WatchProcess { pid: 20 },
-                Status(StatusEvent::Active { game_id: "cs2".into(), width: 1280, height: 960 }),
+                Status(StatusEvent::Active { game_id: "cs2".into(), width: 1280, height: 960, refresh_hz: 240 }),
             ]
         );
         assert_eq!(e.active_monitor(), Some(D2));
@@ -457,9 +462,9 @@ mod tests {
             e.handle(Event::RulesChanged(new_rules), t0 + ms(10)),
             vec![
                 Apply { monitor: D1.into(), mode: m(1280, 960, 240) },
-                Status(StatusEvent::Active { game_id: "valorant".into(), width: 1280, height: 960 }),
+                Status(StatusEvent::Active { game_id: "valorant".into(), width: 1280, height: 960, refresh_hz: 240 }),
             ]
         );
-        assert_eq!(e.status(), StatusEvent::Active { game_id: "valorant".into(), width: 1280, height: 960 });
+        assert_eq!(e.status(), StatusEvent::Active { game_id: "valorant".into(), width: 1280, height: 960, refresh_hz: 240 });
     }
 }

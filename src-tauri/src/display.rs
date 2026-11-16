@@ -70,6 +70,15 @@ pub fn default_resolution(modes: &[DisplayMode], native: DisplayMode) -> (u32, u
         .unwrap_or((native.width, native.height))
 }
 
+/// One option per resolution, carrying the refresh rate REZ would actually use there
+/// (native if available, else the highest), sorted like [`distinct_resolutions`].
+pub fn resolution_options(modes: &[DisplayMode], native: DisplayMode) -> Vec<DisplayMode> {
+    distinct_resolutions(modes)
+        .into_iter()
+        .filter_map(|(w, h)| pick_mode(modes, w, h, native.refresh_hz))
+        .collect()
+}
+
 /// Unique resolutions, sorted by width then height, descending.
 pub fn distinct_resolutions(modes: &[DisplayMode]) -> Vec<(u32, u32)> {
     let mut res: Vec<(u32, u32)> = modes.iter().map(|m| (m.width, m.height)).collect();
@@ -118,6 +127,15 @@ mod tests {
     #[test]
     fn default_resolution_native_when_no_4_3() {
         assert_eq!(default_resolution(&[m(1920, 1080, 144)], m(1920, 1080, 144)), (1920, 1080));
+    }
+
+    #[test]
+    fn resolution_options_show_the_refresh_rez_will_use() {
+        let modes = [m(1920, 1080, 180), m(1920, 1080, 60), m(1440, 1080, 180), m(1440, 1080, 60), m(1280, 960, 120), m(1280, 960, 60)];
+        assert_eq!(
+            resolution_options(&modes, m(1920, 1080, 180)),
+            vec![m(1920, 1080, 180), m(1440, 1080, 180), m(1280, 960, 120)]
+        );
     }
 
     #[test]

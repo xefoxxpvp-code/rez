@@ -385,7 +385,7 @@ mod tests {
         assert_eq!(h.layout.lock().unwrap().last().unwrap(), &format!("restore {D1}"));
         assert_eq!(
             *h.statuses.lock().unwrap(),
-            vec![StatusEvent::Active { game_id: "cs2".into(), width: 1280, height: 960 }, StatusEvent::Idle]
+            vec![StatusEvent::Active { game_id: "cs2".into(), width: 1280, height: 960, refresh_hz: 240 }, StatusEvent::Idle]
         );
     }
 

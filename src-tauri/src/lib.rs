@@ -1,3 +1,4 @@
+pub mod art;
 pub mod commands;
 pub mod config;
 pub mod display;
@@ -60,14 +61,14 @@ fn on_status(app: &AppHandle, status: StatusEvent) {
             *s = status.clone();
         }
         let tooltip = match &status {
-            StatusEvent::Active { game_id, width, height } => {
+            StatusEvent::Active { game_id, width, height, refresh_hz } => {
                 let name = state
                     .config
                     .lock()
                     .ok()
                     .and_then(|c| c.games.iter().find(|g| &g.id == game_id).map(|g| g.name.clone()))
                     .unwrap_or_else(|| game_id.clone());
-                format!("REZ — {name} {width}×{height}")
+                format!("REZ — {name} {width}×{height} {refresh_hz} Hz")
             }
             _ => "REZ — inactif".to_string(),
         };
@@ -142,6 +143,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::list_displays,
+            commands::get_game_art,
             commands::add_game,
             commands::update_game,
             commands::remove_game,

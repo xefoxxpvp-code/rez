@@ -5,17 +5,12 @@ use tauri::{AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::config::{Config, ConfigError, GameEntry};
-use crate::display::{distinct_resolutions, DisplayApi, DisplayMode};
+use base64::Engine as _;
+
+use crate::display::{resolution_options, DisplayApi, DisplayMode};
 use crate::engine::StatusEvent;
 use crate::runtime::Input;
 use crate::{store, AppState};
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Resolution {
-    pub width: u32,
-    pub height: u32,
-}
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,7 +19,26 @@ pub struct DisplayInfo {
     pub label: String,
     pub primary: bool,
     pub native: DisplayMode,
-    pub resolutions: Vec<Resolution>,
+    /// One entry per resolution, with the refresh rate REZ would use there.
+    pub resolutions: Vec<DisplayMode>,
+}
+
+/// Game visuals as data URLs: Steam logo + hero art when available, and the exe icon.
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameArt {
+    pub logo: Option<String>,
+    pub hero: Option<String>,
+    pub icon: Option<String>,
+}
+
+fn data_url(bytes: &[u8], mime: &str) -> String {
+    format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
+fn file_data_url(path: &std::path::Path) -> Option<String> {
+    let mime = if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png")) { "image/png" } else { "image/jpeg" };
+    std::fs::read(path).ok().map(|b| data_url(&b, mime))
 }
 
 /// Applies `f` to the config, saves it and pushes the new rules to the runtime.
@@ -57,10 +71,28 @@ pub fn list_displays(state: State<AppState>) -> Result<Vec<DisplayInfo>, String>
         .map(|m| {
             let modes = state.display.list_modes(&m.device).map_err(|e| e.to_string())?;
             let native = state.display.registry_mode(&m.device).map_err(|e| e.to_string())?;
-            let resolutions = distinct_resolutions(&modes).into_iter().map(|(width, height)| Resolution { width, height }).collect();
+            let resolutions = resolution_options(&modes, native);
             Ok(DisplayInfo { device: m.device, label: m.label, primary: m.primary, native, resolutions })
         })
         .collect()
+}
+
+#[tauri::command]
+pub async fn get_game_art(state: State<'_, AppState>, id: String) -> Result<GameArt, String> {
+    let exe_path = {
+        let config = state.config.lock().map_err(|_| "configuration verrouillée".to_string())?;
+        config.games.iter().find(|g| g.id == id).map(|g| g.exe_path.clone()).ok_or("Jeu introuvable")?
+    };
+    let steam = crate::art::steam_art_for_exe(&exe_path, &crate::win::steam::steam_roots());
+    let icon = crate::win::icon::exe_icon_png(&exe_path, 256)
+        .map_err(|e| log::info!("no icon for {exe_path}: {e}"))
+        .ok()
+        .map(|png| data_url(&png, "image/png"));
+    Ok(GameArt {
+        logo: steam.logo.as_deref().and_then(file_data_url),
+        hero: steam.hero.as_deref().and_then(file_data_url),
+        icon,
+    })
 }
 
 #[tauri::command]
