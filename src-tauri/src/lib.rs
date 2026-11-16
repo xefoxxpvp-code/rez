@@ -73,7 +73,10 @@ fn on_status(app: &AppHandle, status: StatusEvent) {
             }
             _ => "REZ — inactif".to_string(),
         };
-        tray::set_tooltip(app, &tooltip);
+        // set_tooltip blocks until the main thread runs it; never block the runtime thread on
+        // that (at exit the main thread waits for the runtime's ack).
+        let app = app.clone();
+        std::thread::spawn(move || tray::set_tooltip(&app, &tooltip));
     }
     let _ = app.emit(STATUS_EVENT, &status);
 }

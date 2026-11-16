@@ -14,8 +14,7 @@ use windows::Win32::Graphics::Gdi::{
 
 use windows::Win32::Devices::Display::{
     GetDisplayConfigBufferSizes, QueryDisplayConfig, SetDisplayConfig, DISPLAYCONFIG_MODE_INFO,
-    DISPLAYCONFIG_PATH_INFO, QDC_ONLY_ACTIVE_PATHS, SDC_ALLOW_CHANGES, SDC_APPLY, SDC_TOPOLOGY_EXTEND,
-    SDC_USE_SUPPLIED_DISPLAY_CONFIG,
+    DISPLAYCONFIG_PATH_INFO, QDC_ONLY_ACTIVE_PATHS, SDC_ALLOW_CHANGES, SDC_APPLY, SDC_USE_SUPPLIED_DISPLAY_CONFIG,
 };
 use std::sync::Mutex;
 
@@ -216,15 +215,8 @@ impl DisplayApi for Win32Display {
         if code == 0 {
             return Ok(());
         }
+        // No blind fallback (e.g. forcing "extend"): it could enable a screen the user keeps off.
         log::warn!("SetDisplayConfig(saved) failed with {code}");
-        // The saved path ids can be stale after a hot-unplug: fall back to an extended desktop.
-        if paths.len() >= 2 {
-            let code = unsafe { SetDisplayConfig(None, None, SDC_APPLY | SDC_TOPOLOGY_EXTEND) };
-            if code == 0 {
-                return Ok(());
-            }
-            return Err(DisplayError::Rejected(code));
-        }
         Err(DisplayError::Rejected(code))
     }
 }

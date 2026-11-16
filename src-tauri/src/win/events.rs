@@ -10,8 +10,9 @@ use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::RemoteDesktop::{WTSRegisterSessionNotification, NOTIFY_FOR_THIS_SESSION};
+use windows::Win32::Foundation::{STILL_ACTIVE, WAIT_OBJECT_0};
 use windows::Win32::System::Threading::{
-    OpenProcess, QueryFullProcessImageNameW, WaitForSingleObject, INFINITE, PROCESS_NAME_WIN32,
+    GetExitCodeProcess, OpenProcess, QueryFullProcessImageNameW, WaitForSingleObject, INFINITE, PROCESS_NAME_WIN32,
     PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
 };
 use windows::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
@@ -143,17 +144,40 @@ pub fn start(tx: Sender<Input>) -> std::io::Result<()> {
     }
 }
 
-/// Sends `ProcessExited { pid }` when the process ends. Logs and sends nothing if it cannot be opened.
+/// Sends `ProcessExited { pid }` when the process ends. Waits on the process handle; if the
+/// wait cannot be used (some anti-cheats strip SYNCHRONIZE), polls the exit code instead.
+/// Never reports an exit it did not observe.
 pub fn watch_process(pid: u32, tx: Sender<Input>) {
     let spawned = std::thread::Builder::new().name(format!("rez-watch-{pid}")).spawn(move || unsafe {
-        match OpenProcess(PROCESS_SYNCHRONIZE, false, pid) {
-            Ok(handle) => {
-                WaitForSingleObject(handle, INFINITE);
-                let _ = CloseHandle(handle);
+        if let Ok(handle) = OpenProcess(PROCESS_SYNCHRONIZE, false, pid) {
+            let waited = WaitForSingleObject(handle, INFINITE);
+            let _ = CloseHandle(handle);
+            if waited == WAIT_OBJECT_0 {
                 let _ = tx.send(Input::ProcessExited { pid });
+                return;
             }
-            Err(e) => log::warn!("cannot watch process {pid}: {e}"),
+            log::warn!("wait on process {pid} failed ({waited:?}); polling instead");
         }
+        let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else {
+            log::warn!("cannot watch process {pid}");
+            return;
+        };
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            let mut code = 0u32;
+            match GetExitCodeProcess(handle, &mut code) {
+                Ok(()) if code == STILL_ACTIVE.0 as u32 => continue,
+                Ok(()) => {
+                    let _ = tx.send(Input::ProcessExited { pid });
+                    break;
+                }
+                Err(e) => {
+                    log::warn!("cannot poll process {pid}: {e}");
+                    break;
+                }
+            }
+        }
+        let _ = CloseHandle(handle);
     });
     if let Err(e) = spawned {
         log::warn!("cannot spawn watch thread for {pid}: {e}");

@@ -51,6 +51,8 @@ pub struct Runtime {
     guard_until: Option<Instant>,
     /// Set after a topology incident; cleared by the next rules change.
     suspended: bool,
+    /// Every monitor REZ applied a mode to this session (emergency restore targets).
+    touched: HashSet<String>,
 }
 
 impl Runtime {
@@ -73,6 +75,7 @@ impl Runtime {
             guard_devices: Vec::new(),
             guard_until: None,
             suspended: false,
+            touched: HashSet::new(),
         }
     }
 
@@ -96,7 +99,11 @@ impl Runtime {
                 if self.check_topology(now) {
                     return;
                 }
-                let Some(monitor) = self.engine.active_monitor().map(str::to_string) else { return };
+                let Some(monitor) = self.engine.active_monitor().map(str::to_string) else {
+                    // The user may have changed resolution/refresh in Windows: re-read modes next time.
+                    self.modes_cache.clear();
+                    return;
+                };
                 match self.display.current_mode(&monitor) {
                     Ok(current) => Event::DisplayChanged { monitor, current },
                     Err(e) => {
@@ -116,8 +123,20 @@ impl Runtime {
                 Event::Shutdown
             }
         };
+        let emergency = matches!(event, Event::RestoreRequested);
         let actions = self.engine.handle(event, now);
-        self.execute(actions, now);
+        let restored = self.execute(actions, now);
+        if emergency {
+            // Whatever the engine believes, put back every monitor REZ touched.
+            let pending: Vec<String> = self.touched.iter().filter(|m| !restored.contains(*m)).cloned().collect();
+            for monitor in pending {
+                if let Err(e) = self.display.restore(&monitor) {
+                    let message = format!("Impossible de revenir en résolution native : {e}");
+                    log::warn!("{message}");
+                    (self.on_status)(StatusEvent::Error { message });
+                }
+            }
+        }
         if let Some(ack) = ack {
             self.layout.flush();
             let _ = ack.send(());
@@ -126,7 +145,7 @@ impl Runtime {
 
     pub fn tick(&mut self, now: Instant) {
         let actions = self.engine.tick(now);
-        self.execute(actions, now);
+        let _ = self.execute(actions, now);
         if self.guard_until.is_some_and(|t| now >= t)
             && !self.check_topology(now) {
                 self.guard_until = None;
@@ -147,7 +166,8 @@ impl Runtime {
     /// Returns true when a monitor left the desktop since the session started; in that case
     /// restores native modes and the saved topology, goes idle and suspends switching.
     fn check_topology(&mut self, now: Instant) -> bool {
-        if self.guard_devices.is_empty() {
+        // Only right after REZ's own mode changes: later changes are the user's business.
+        if self.guard_devices.is_empty() || self.guard_until.is_none() {
             return false;
         }
         let current: Vec<String> = match self.display.list_monitors() {
@@ -162,7 +182,7 @@ impl Runtime {
             return false;
         }
         log::warn!("monitor(s) left the desktop after a mode change: {missing:?}");
-        for device in current.iter().filter(|d| self.guard_devices.contains(d)) {
+        for device in current.iter().filter(|d| self.touched.contains(*d)) {
             if let Err(e) = self.display.restore(device) {
                 log::warn!("restore {device} failed: {e}");
             }
@@ -171,7 +191,7 @@ impl Runtime {
             log::warn!("restore_topology failed: {e}");
         }
         let actions = self.engine.handle(Event::RestoreRequested, now);
-        self.execute(actions, now);
+        let _ = self.execute(actions, now);
         self.guard_devices.clear();
         self.guard_until = None;
         self.suspended = true;
@@ -195,7 +215,7 @@ impl Runtime {
                         Err(RecvTimeoutError::Disconnected) => {
                             let now = Instant::now();
                             let actions = self.engine.handle(Event::Shutdown, now);
-                            self.execute(actions, now);
+                            let _ = self.execute(actions, now);
                             break;
                         }
                     }
@@ -222,7 +242,11 @@ impl Runtime {
         }
     }
 
-    fn execute(&mut self, actions: Vec<Action>, now: Instant) {
+    /// Runs the actions; returns the monitors restored. A failed Apply/Restore replaces the
+    /// status that follows it in the batch, so the UI never claims a state the screen is not in.
+    fn execute(&mut self, actions: Vec<Action>, now: Instant) -> Vec<String> {
+        let mut restored = Vec::new();
+        let mut failure: Option<String> = None;
         for action in actions {
             match action {
                 Action::SaveDesktopLayout { monitor } => {
@@ -240,10 +264,11 @@ impl Runtime {
                 Action::RestoreDesktopLayout { monitor } => self.layout.restore(&monitor),
                 Action::Apply { monitor, mode } => {
                     self.guard_until = Some(now + TOPOLOGY_GUARD);
+                    self.touched.insert(monitor.clone());
                     if let Err(e) = self.display.apply_temporary(&monitor, mode) {
                         let message = format!("Impossible de passer en {} × {} : {e}", mode.width, mode.height);
                         log::warn!("{message}");
-                        (self.on_status)(StatusEvent::Error { message });
+                        failure = Some(message);
                     }
                 }
                 Action::Restore { monitor } => {
@@ -251,17 +276,25 @@ impl Runtime {
                     if let Err(e) = self.display.restore(&monitor) {
                         let message = format!("Impossible de revenir en résolution native : {e}");
                         log::warn!("{message}");
-                        (self.on_status)(StatusEvent::Error { message });
+                        failure = Some(message);
                     }
+                    restored.push(monitor);
                 }
                 Action::WatchProcess { pid } => {
                     if self.watched.insert(pid) {
                         (self.watch_process)(pid);
                     }
                 }
-                Action::Status(status) => (self.on_status)(status),
+                Action::Status(status) => match failure.take() {
+                    Some(message) => (self.on_status)(StatusEvent::Error { message }),
+                    None => (self.on_status)(status),
+                },
             }
         }
+        if let Some(message) = failure {
+            (self.on_status)(StatusEvent::Error { message });
+        }
+        restored
     }
 }
 
@@ -285,6 +318,9 @@ mod tests {
         calls: Arc<Mutex<Vec<String>>>,
         current: Mutex<Option<DisplayMode>>,
         fail_apply: bool,
+        fail_restore: Mutex<bool>,
+        /// Overrides the registry (native) mode; default 1920x1080@240.
+        registry: Mutex<Option<DisplayMode>>,
         /// Attached devices; tests remove one to simulate a monitor leaving the desktop.
         devices: Mutex<Vec<String>>,
     }
@@ -307,10 +343,10 @@ mod tests {
             Ok(())
         }
         fn list_modes(&self, _: &str) -> Result<Vec<DisplayMode>, DisplayError> {
-            Ok(vec![m(1920, 1080, 240), m(1440, 1080, 240), m(1280, 960, 240)])
+            Ok(vec![m(1920, 1080, 240), m(1920, 1080, 144), m(1440, 1080, 240), m(1280, 960, 240), m(1280, 960, 144)])
         }
         fn registry_mode(&self, _: &str) -> Result<DisplayMode, DisplayError> {
-            Ok(m(1920, 1080, 240))
+            Ok(self.registry.lock().unwrap().unwrap_or(m(1920, 1080, 240)))
         }
         fn current_mode(&self, _: &str) -> Result<DisplayMode, DisplayError> {
             Ok(self.current.lock().unwrap().unwrap_or(m(1920, 1080, 240)))
@@ -325,6 +361,9 @@ mod tests {
         }
         fn restore(&self, device: &str) -> Result<(), DisplayError> {
             self.calls.lock().unwrap().push(format!("restore {device}"));
+            if *self.fail_restore.lock().unwrap() {
+                return Err(DisplayError::Rejected(-1));
+            }
             *self.current.lock().unwrap() = None;
             Ok(())
         }
@@ -409,7 +448,9 @@ mod tests {
         let mut h = harness(true);
         let t0 = Instant::now();
         h.rt.handle_input(fg(10, "cs2.exe"), t0);
-        assert!(h.statuses.lock().unwrap().iter().any(|s| matches!(s, StatusEvent::Error { .. })));
+        // The error must be the last status: the screen is NOT stretched, the UI must not say it is.
+        let last = h.statuses.lock().unwrap().last().cloned();
+        assert!(matches!(last, Some(StatusEvent::Error { .. })), "last status: {last:?}");
         let (ack, _ack_rx) = std::sync::mpsc::channel();
         h.rt.handle_input(Input::Shutdown { ack }, t0 + Duration::from_millis(10));
         assert_eq!(h.display.calls.lock().unwrap().last().unwrap(), &format!("restore {D1}"));
@@ -479,6 +520,71 @@ mod tests {
         h.rt.tick(t0 + TOPOLOGY_GUARD);
         assert!(!calls(&h).contains(&"restore_topology".to_string()));
         assert_eq!(h.rt.next_deadline(), None);
+    }
+
+    fn restores(h: &Harness, device: &str) -> usize {
+        calls(h).iter().filter(|c| **c == format!("restore {device}")).count()
+    }
+
+    #[test]
+    fn runtime_reports_restore_error_last() {
+        let mut h = harness(false);
+        let t0 = Instant::now();
+        h.rt.handle_input(fg(10, "cs2.exe"), t0);
+        *h.display.fail_restore.lock().unwrap() = true;
+        h.rt.handle_input(fg(99, "chrome.exe"), t0 + Duration::from_millis(10));
+        h.rt.tick(t0 + Duration::from_millis(260));
+        let last = h.statuses.lock().unwrap().last().cloned();
+        assert!(matches!(last, Some(StatusEvent::Error { .. })), "last status: {last:?}");
+    }
+
+    #[test]
+    fn emergency_restore_works_even_when_idle() {
+        let mut h = harness(false);
+        let t0 = Instant::now();
+        h.rt.handle_input(fg(10, "cs2.exe"), t0);
+        *h.display.fail_restore.lock().unwrap() = true;
+        h.rt.handle_input(Input::ProcessExited { pid: 10 }, t0 + Duration::from_millis(10)); // restore fails, engine idle
+        *h.display.fail_restore.lock().unwrap() = false;
+        h.rt.handle_input(Input::RestoreRequested, t0 + Duration::from_millis(20));
+        assert_eq!(restores(&h, D1), 2, "the emergency path must retry every monitor REZ touched");
+    }
+
+    #[test]
+    fn native_mode_is_reread_after_a_display_change_while_idle() {
+        let mut h = harness(false);
+        let t0 = Instant::now();
+        h.rt.handle_input(fg(10, "cs2.exe"), t0);
+        h.rt.handle_input(Input::ProcessExited { pid: 10 }, t0 + Duration::from_millis(10));
+        h.rt.tick(t0 + TOPOLOGY_GUARD + Duration::from_millis(20)); // guard window over
+        *h.display.registry.lock().unwrap() = Some(m(1920, 1080, 144)); // user switched to 144 Hz in Windows
+        h.rt.handle_input(Input::DisplayMaybeChanged, t0 + Duration::from_secs(10));
+        h.rt.handle_input(fg(11, "cs2.exe"), t0 + Duration::from_secs(11));
+        assert_eq!(calls(&h).last().unwrap(), &format!("apply {D1} 1280x960@144"));
+    }
+
+    #[test]
+    fn topology_change_after_the_guard_window_is_left_alone() {
+        let mut h = harness(false);
+        let t0 = Instant::now();
+        h.rt.handle_input(fg(10, "cs2.exe"), t0);
+        h.rt.tick(t0 + TOPOLOGY_GUARD); // REZ's own change settled fine
+        h.display.devices.lock().unwrap().retain(|d| d != D2); // later, the user disables DISPLAY2
+        h.rt.handle_input(Input::DisplayMaybeChanged, t0 + Duration::from_secs(30));
+        assert!(!calls(&h).contains(&"restore_topology".to_string()));
+    }
+
+    #[test]
+    fn topology_incident_restores_only_monitors_rez_touched() {
+        const D3: &str = r"\.\DISPLAY3";
+        let mut h = harness(false);
+        h.display.devices.lock().unwrap().push(D3.into());
+        let t0 = Instant::now();
+        h.rt.handle_input(fg(10, "cs2.exe"), t0);
+        h.display.devices.lock().unwrap().retain(|d| d != D3);
+        h.rt.handle_input(Input::DisplayMaybeChanged, t0 + Duration::from_millis(500));
+        assert!(calls(&h).contains(&"restore_topology".to_string()));
+        assert_eq!(restores(&h, D2), 0, "DISPLAY2 was never stretched by REZ");
     }
 
     #[test]
