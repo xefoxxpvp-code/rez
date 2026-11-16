@@ -3,6 +3,7 @@ pub mod commands;
 pub mod config;
 pub mod display;
 pub mod engine;
+pub mod layout_book;
 pub mod runtime;
 pub mod store;
 pub mod tray;
@@ -114,10 +115,12 @@ pub fn run() {
 
             let handle = app.handle().clone();
             let watch_tx = tx.clone();
+            let icons_snapshot = config_path.with_file_name("icons-snapshot.json");
+            Win32Layout::recover_icons_from_disk(&icons_snapshot);
             Runtime::new(
                 config.rules(),
                 display.clone(),
-                Box::new(Win32Layout::new()),
+                Box::new(Win32Layout::new(icons_snapshot)),
                 Box::new(move |pid| win::events::watch_process(pid, watch_tx.clone())),
                 Box::new(move |status| on_status(&handle, status)),
             )

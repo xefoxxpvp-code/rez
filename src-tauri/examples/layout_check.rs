@@ -9,7 +9,7 @@ fn main() {
     let native = d.registry_mode(&primary.device).unwrap();
     let mode = pick_mode(&d.list_modes(&primary.device).unwrap(), 1280, 960, native.refresh_hz).expect("1280x960");
     let before = rez_lib::win::desktop_layout::icon_positions();
-    let mut layout = Win32Layout::new();
+    let mut layout = Win32Layout::new(std::env::temp_dir().join("rez-icons-check.json"));
     layout.capture(&primary.device);
     d.apply_temporary(&primary.device, mode).unwrap();
     std::thread::sleep(std::time::Duration::from_secs(3));

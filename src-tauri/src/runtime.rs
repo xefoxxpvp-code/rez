@@ -29,7 +29,10 @@ const TOPOLOGY_LOST_MESSAGE: &str = "Un écran s'est déconnecté pendant le cha
 /// Saves and restores desktop icon positions and window placements around a mode switch.
 pub trait LayoutApi: Send {
     fn capture(&mut self, monitor: &str);
+    /// May complete asynchronously (Explorer settles after a mode change).
     fn restore(&mut self, monitor: &str);
+    /// Completes every pending restore synchronously (app shutdown).
+    fn flush(&mut self) {}
 }
 
 pub struct Runtime {
@@ -116,6 +119,7 @@ impl Runtime {
         let actions = self.engine.handle(event, now);
         self.execute(actions, now);
         if let Some(ack) = ack {
+            self.layout.flush();
             let _ = ack.send(());
         }
     }
@@ -334,6 +338,9 @@ mod tests {
         fn restore(&mut self, monitor: &str) {
             self.0.lock().unwrap().push(format!("restore {monitor}"));
         }
+        fn flush(&mut self) {
+            self.0.lock().unwrap().push("flush".into());
+        }
     }
 
     struct Harness {
@@ -482,6 +489,8 @@ mod tests {
         let (ack, ack_rx) = std::sync::mpsc::channel();
         h.rt.handle_input(Input::Shutdown { ack }, t0 + Duration::from_millis(10));
         assert_eq!(h.display.calls.lock().unwrap().last().unwrap(), &format!("restore {D1}"));
+        // Pending layout restores are completed before acknowledging, so quitting never loses them.
+        assert_eq!(h.layout.lock().unwrap().last().map(String::as_str), Some("flush"));
         assert!(ack_rx.try_recv().is_ok());
     }
 }
