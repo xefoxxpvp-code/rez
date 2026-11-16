@@ -26,6 +26,11 @@ pub const TOPOLOGY_GUARD: Duration = Duration::from_secs(5);
 
 const TOPOLOGY_LOST_MESSAGE: &str = "Un écran s'est déconnecté pendant le changement de résolution. REZ a remis ta configuration d'écrans et a mis les bascules en pause : modifie un réglage d'un jeu pour les réactiver.";
 
+/// Shows/hides the crosshair overlay (Win32 window in production, a recorder in tests).
+pub trait OverlayApi: Send {
+    fn apply(&mut self, cmd: crate::crosshair::director::OverlayCommand);
+}
+
 /// Saves and restores desktop icon positions and window placements around a mode switch.
 pub trait LayoutApi: Send {
     fn capture(&mut self, monitor: &str);
