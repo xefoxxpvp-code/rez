@@ -1,0 +1,28 @@
+{
+  "tabs": { "games": "Jeux", "settings": "Réglages" },
+  "status": {
+    "idle": "Aucun jeu étiré pour l'instant",
+    "active": "{{name}} est étiré en {{res}}",
+    "modeUnavailable": "{{name}} : {{res}} n'existe pas sur cet écran",
+    "restore": "Revenir en natif"
+  },
+  "games": {
+    "emptyTitle": "Ajoute ton premier jeu",
+    "emptyBody": "Choisis le .exe du jeu. REZ change la résolution de l'écran seulement quand ce jeu est au premier plan, et la remet dès que tu en sors.",
+    "add": "Ajouter un jeu",
+    "pickTitle": "Choisir le .exe du jeu",
+    "resolution": "Résolution de {{name}}",
+    "enabled": "Activé",
+    "keepStretched": "Rester étiré pendant alt-tab",
+    "remove": "Retirer",
+    "confirmRemove": "Retirer {{name}} de REZ ?",
+    "loadError": "Impossible de lire les écrans : {{error}}"
+  },
+  "settings": {
+    "autostart": "Lancer REZ au démarrage de Windows",
+    "autostartHint": "REZ démarre réduit près de l'horloge.",
+    "hotkeyTitle": "Raccourci d'urgence",
+    "hotkey": "Ctrl+Alt+Shift+R remet la résolution native, même en pleine partie.",
+    "trayHint": "Fermer la fenêtre laisse REZ actif près de l'horloge. Pour le quitter : clic droit sur son icône, puis Quitter."
+  }
+}
