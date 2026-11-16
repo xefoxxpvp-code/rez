@@ -4,6 +4,7 @@ pub mod config;
 pub mod crosshair;
 pub mod display;
 pub mod engine;
+pub mod imaging;
 pub mod layout_book;
 pub mod runtime;
 pub mod store;

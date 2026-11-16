@@ -42,17 +42,7 @@ pub fn crop_to_content(rgba: &[u8], width: u32, height: u32) -> (Vec<u8>, u32, u
     (out, (x1 - x0) as u32, (y1 - y0) as u32)
 }
 
-pub fn encode_png(rgba: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> {
-    let mut out = Vec::new();
-    {
-        let mut encoder = png::Encoder::new(&mut out, width, height);
-        encoder.set_color(png::ColorType::Rgba);
-        encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder.write_header().map_err(|e| e.to_string())?;
-        writer.write_image_data(rgba).map_err(|e| e.to_string())?;
-    }
-    Ok(out)
-}
+pub use crate::imaging::encode_png;
 
 /// PNG of the executable's icon at up to `size` px, or an error message.
 pub fn exe_icon_png(exe_path: &str, size: i32) -> Result<Vec<u8>, String> {

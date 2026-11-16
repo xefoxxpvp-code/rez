@@ -3,3 +3,4 @@
 pub mod director;
 pub mod model;
 pub mod presets;
+pub mod render;
