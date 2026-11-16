@@ -29,6 +29,19 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Tailwind's preflight resets buttons to the default arrow: anything clickable gets the hand. */
+button:not(:disabled),
+select,
+summary,
+[role="switch"],
+[role="option"],
+label:has(input) {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
 ::selection {
   background: rgb(59 130 246 / 0.3);
 }

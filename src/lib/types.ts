@@ -27,21 +27,24 @@ export interface Config {
   settings: Settings;
 }
 
-export interface Resolution {
-  width: number;
-  height: number;
-}
-
 export interface DisplayInfo {
   device: string;
   label: string;
   primary: boolean;
   native: DisplayMode;
-  resolutions: Resolution[];
+  /** One entry per resolution, with the refresh rate REZ would use there. */
+  resolutions: DisplayMode[];
+}
+
+/** Data URLs: Steam logo and hero art when the game is a Steam install, plus the exe icon. */
+export interface GameArt {
+  logo: string | null;
+  hero: string | null;
+  icon: string | null;
 }
 
 export type StatusEvent =
   | { kind: "idle" }
-  | { kind: "active"; gameId: string; width: number; height: number }
+  | { kind: "active"; gameId: string; width: number; height: number; refreshHz: number }
   | { kind: "modeUnavailable"; gameId: string; width: number; height: number }
   | { kind: "error"; message: string };

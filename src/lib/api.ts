@@ -1,10 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Config, DisplayInfo, GameEntry, StatusEvent } from "./types";
+import type { Config, DisplayInfo, GameArt, GameEntry, StatusEvent } from "./types";
 
 export const getConfig = () => invoke<Config>("get_config");
 export const listDisplays = () => invoke<DisplayInfo[]>("list_displays");
+export const getGameArt = (id: string) => invoke<GameArt>("get_game_art", { id });
 export const addGame = (exePath: string) => invoke<GameEntry>("add_game", { exePath });
 export const updateGame = (game: GameEntry) => invoke<void>("update_game", { game });
 export const removeGame = (id: string) => invoke<void>("remove_game", { id });

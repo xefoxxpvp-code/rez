@@ -15,6 +15,7 @@
     "add": "Ajouter un jeu",
     "pickTitle": "Choisir le .exe du jeu",
     "resolution": "Résolution de {{name}}",
+    "screen": "Écran principal",
     "activeBadge": "Étiré",
     "enabled": "Activé",
     "keepStretched": "Rester étiré pendant alt-tab",

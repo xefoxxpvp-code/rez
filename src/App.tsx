@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import RezLogo from "./components/RezLogo";
 import StatusBar from "./components/StatusBar";
 import { getConfig, getStatus, listDisplays, onStatus } from "./lib/api";
 import type { Config, DisplayInfo, StatusEvent } from "./lib/types";
@@ -52,7 +53,10 @@ export default function App() {
         style={{ background: "radial-gradient(closest-side, rgba(37,99,235,.2), transparent)" }}
       />
       <header className="relative z-10 flex items-center justify-between gap-4 px-8 pt-6">
-        <p className="display m-0 text-[28px] leading-none">REZ</p>
+        <div className="flex items-center gap-3">
+          <RezLogo size={40} />
+          <p className="display m-0 text-[28px] leading-none">REZ</p>
+        </div>
         <nav className="flex gap-1 rounded-full bg-white/[0.04] p-1" aria-label="REZ">
           <button type="button" className={tabClass("games")} aria-current={tab === "games"} onClick={() => setTab("games")}>
             {t("tabs.games")}
@@ -79,6 +83,7 @@ export default function App() {
             <Games
               config={config}
               resolutions={display?.resolutions ?? []}
+              display={display}
               screen={screen}
               status={status}
               onChanged={refresh}
