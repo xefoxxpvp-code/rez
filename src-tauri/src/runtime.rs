@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use crate::crosshair::director::{CrosshairDirector, CrosshairRule, OverlayCommand};
 use crate::display::{DisplayApi, DisplayMode};
 use crate::engine::{Action, Engine, Event, GameRule, StatusEvent};
 
@@ -18,6 +19,9 @@ pub enum Input {
     DisplayMaybeChanged,
     RestoreRequested,
     RulesChanged(Vec<GameRule>),
+    CrosshairRulesChanged { rules: Vec<CrosshairRule>, undistort: bool, hide_with_faceit: bool },
+    /// Session show/hide of the crosshair (hotkey).
+    ToggleCrosshair,
     Shutdown { ack: std::sync::mpsc::Sender<()> },
 }
 
@@ -28,7 +32,13 @@ const TOPOLOGY_LOST_MESSAGE: &str = "Un écran s'est déconnecté pendant le cha
 
 /// Shows/hides the crosshair overlay (Win32 window in production, a recorder in tests).
 pub trait OverlayApi: Send {
-    fn apply(&mut self, cmd: crate::crosshair::director::OverlayCommand);
+    fn apply(&mut self, cmd: OverlayCommand);
+}
+
+/// Default overlay when none is attached (tests of the resolution logic).
+struct NoOverlay;
+impl OverlayApi for NoOverlay {
+    fn apply(&mut self, _cmd: OverlayCommand) {}
 }
 
 /// Saves and restores desktop icon positions and window placements around a mode switch.
@@ -58,6 +68,9 @@ pub struct Runtime {
     suspended: bool,
     /// Every monitor REZ applied a mode to this session (emergency restore targets).
     touched: HashSet<String>,
+    director: CrosshairDirector,
+    overlay: Box<dyn OverlayApi>,
+    faceit_running: Box<dyn Fn() -> bool + Send>,
 }
 
 impl Runtime {
@@ -81,20 +94,54 @@ impl Runtime {
             guard_until: None,
             suspended: false,
             touched: HashSet::new(),
+            director: CrosshairDirector::new(Vec::new(), true, true),
+            overlay: Box::new(NoOverlay),
+            faceit_running: Box::new(|| false),
+        }
+    }
+
+    /// Attaches the crosshair overlay and the FACEIT probe.
+    pub fn with_crosshair(mut self, overlay: Box<dyn OverlayApi>, faceit_running: Box<dyn Fn() -> bool + Send>) -> Self {
+        self.overlay = overlay;
+        self.faceit_running = faceit_running;
+        self
+    }
+
+    fn overlay_apply(&mut self, cmd: Option<OverlayCommand>) {
+        if let Some(cmd) = cmd {
+            self.overlay.apply(cmd);
         }
     }
 
     pub fn handle_input(&mut self, input: Input, now: Instant) {
         let mut ack = None;
         let event = match input {
-            Input::Foreground { .. } if self.suspended => return,
             Input::Foreground { pid, exe_name, monitor } => {
                 let (modes, native) = if exe_name.is_empty() {
                     (Vec::new(), DisplayMode { width: 0, height: 0, refresh_hz: 0 })
                 } else {
                     self.modes_for(&monitor)
                 };
+                // The crosshair follows focus even while resolution switching is suspended.
+                let faceit = (self.faceit_running)();
+                let cmd = self.director.on_foreground(pid, &exe_name, (native.width, native.height), faceit);
+                self.overlay_apply(cmd);
+                if self.suspended {
+                    return;
+                }
                 Event::Foreground { pid, exe_name, monitor, modes, native }
+            }
+            Input::CrosshairRulesChanged { rules, undistort, hide_with_faceit } => {
+                let faceit = (self.faceit_running)();
+                let cmd = self.director.on_rules(rules, undistort, hide_with_faceit, faceit);
+                self.overlay_apply(cmd);
+                return;
+            }
+            Input::ToggleCrosshair => {
+                let faceit = (self.faceit_running)();
+                let cmd = self.director.toggle(faceit);
+                self.overlay_apply(cmd);
+                return;
             }
             Input::ProcessExited { pid } => {
                 self.watched.remove(&pid);
@@ -125,6 +172,7 @@ impl Runtime {
             Input::Shutdown { ack: a } => {
                 ack = Some(a);
                 self.stopped = true;
+                self.overlay.apply(OverlayCommand::Hide);
                 Event::Shutdown
             }
         };
@@ -590,6 +638,78 @@ mod tests {
         h.rt.handle_input(Input::DisplayMaybeChanged, t0 + Duration::from_millis(500));
         assert!(calls(&h).contains(&"restore_topology".to_string()));
         assert_eq!(restores(&h, D2), 0, "DISPLAY2 was never stretched by REZ");
+    }
+
+    struct MockOverlay(Arc<Mutex<Vec<String>>>);
+    impl OverlayApi for MockOverlay {
+        fn apply(&mut self, cmd: crate::crosshair::director::OverlayCommand) {
+            use crate::crosshair::director::OverlayCommand::*;
+            self.0.lock().unwrap().push(match cmd {
+                Show(spec) => format!("show {} {}", spec.pid, spec.crosshair.name),
+                Hide => "hide".into(),
+            });
+        }
+    }
+
+    /// Harness with a crosshair (first preset) assigned to cs2.exe.
+    fn crosshair_harness(faceit: bool) -> (Harness, Arc<Mutex<Vec<String>>>) {
+        let mut h = harness(false);
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let rt = h.rt;
+        h.rt = rt.with_crosshair(Box::new(MockOverlay(log.clone())), Box::new(move || faceit));
+        let rules = vec![crate::crosshair::director::CrosshairRule {
+            exe_name_lower: "cs2.exe".into(),
+            crosshair: crate::crosshair::presets::presets()[0].clone(),
+        }];
+        h.rt.handle_input(Input::CrosshairRulesChanged { rules, undistort: true, hide_with_faceit: true }, Instant::now());
+        (h, log)
+    }
+
+    fn last(log: &Arc<Mutex<Vec<String>>>) -> Option<String> {
+        log.lock().unwrap().last().cloned()
+    }
+
+    #[test]
+    fn runtime_shows_crosshair_for_game() {
+        let (mut h, log) = crosshair_harness(false);
+        h.rt.handle_input(fg(10, "cs2.exe"), Instant::now());
+        assert_eq!(last(&log).as_deref(), Some("show 10 Cyan pro"));
+    }
+
+    #[test]
+    fn runtime_hides_crosshair_on_alt_tab() {
+        let (mut h, log) = crosshair_harness(false);
+        let t0 = Instant::now();
+        h.rt.handle_input(fg(10, "cs2.exe"), t0);
+        h.rt.handle_input(fg(99, "chrome.exe"), t0 + Duration::from_millis(10));
+        assert_eq!(last(&log).as_deref(), Some("hide"), "hidden immediately, not after the 250 ms leave debounce");
+    }
+
+    #[test]
+    fn toggle_input_hides_crosshair() {
+        let (mut h, log) = crosshair_harness(false);
+        let t0 = Instant::now();
+        h.rt.handle_input(fg(10, "cs2.exe"), t0);
+        h.rt.handle_input(Input::ToggleCrosshair, t0 + Duration::from_millis(10));
+        assert_eq!(last(&log).as_deref(), Some("hide"));
+    }
+
+    #[test]
+    fn faceit_probe_hides_crosshair() {
+        let (mut h, log) = crosshair_harness(true);
+        h.rt.handle_input(fg(10, "cs2.exe"), Instant::now());
+        assert!(!log.lock().unwrap().iter().any(|l| l.starts_with("show")));
+    }
+
+    #[test]
+    fn crosshair_still_follows_focus_while_switching_is_suspended() {
+        let (mut h, log) = crosshair_harness(false);
+        let t0 = Instant::now();
+        h.rt.handle_input(fg(10, "cs2.exe"), t0);
+        h.display.devices.lock().unwrap().retain(|d| d != D2);
+        h.rt.handle_input(Input::DisplayMaybeChanged, t0 + Duration::from_millis(100)); // incident → suspended
+        h.rt.handle_input(fg(99, "chrome.exe"), t0 + Duration::from_millis(200));
+        assert_eq!(last(&log).as_deref(), Some("hide"));
     }
 
     #[test]

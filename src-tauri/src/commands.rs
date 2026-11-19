@@ -5,6 +5,7 @@ use tauri::{AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::config::{Config, ConfigError, GameEntry};
+use crate::crosshair::model::Crosshair;
 use base64::Engine as _;
 
 use crate::display::{resolution_options, DisplayApi, DisplayMode};
@@ -47,6 +48,7 @@ fn mutate<T>(state: &AppState, f: impl FnOnce(&mut Config) -> Result<T, ConfigEr
     let out = f(&mut config).map_err(|e| e.to_string())?;
     store::save(&state.config_path, &config).map_err(|e| format!("Impossible d'enregistrer la configuration : {e}"))?;
     let _ = state.input.send(Input::RulesChanged(config.rules()));
+    let _ = state.input.send(AppState::crosshair_input(&config));
     Ok(out)
 }
 
@@ -92,6 +94,48 @@ pub async fn get_game_art(state: State<'_, AppState>, id: String) -> Result<Game
         logo: steam.logo.as_deref().and_then(file_data_url),
         hero: steam.hero.as_deref().and_then(file_data_url),
         icon,
+    })
+}
+
+#[tauri::command]
+pub fn list_crosshairs(state: State<AppState>) -> Result<Vec<Crosshair>, String> {
+    state.config.lock().map(|c| c.crosshairs.clone()).map_err(|_| "configuration verrouillée".to_string())
+}
+
+/// Creates (empty id) or updates a crosshair; returns it with its id.
+#[tauri::command]
+pub fn save_crosshair(state: State<AppState>, crosshair: Crosshair) -> Result<Crosshair, String> {
+    let mut crosshair = crosshair;
+    if crosshair.id.is_empty() {
+        let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+        crosshair.id = format!("custom-{ms}");
+    }
+    let saved = crosshair.clone();
+    mutate(&state, |c| {
+        c.upsert_crosshair(crosshair);
+        Ok(())
+    })?;
+    Ok(saved)
+}
+
+#[tauri::command]
+pub fn delete_crosshair(state: State<AppState>, id: String) -> Result<(), String> {
+    mutate(&state, |c| c.delete_crosshair(&id))
+}
+
+/// PNG preview (data URL) drawn by the same renderer as the overlay.
+#[tauri::command]
+pub async fn preview_crosshair(state: State<'_, AppState>, crosshair: Crosshair) -> Result<String, String> {
+    let png = crate::crosshair::render::render_png(&crosshair, 2.0, &state.crosshair_dir);
+    Ok(data_url(&png, "image/png"))
+}
+
+#[tauri::command]
+pub fn set_crosshair_settings(state: State<AppState>, undistort: bool, hide_with_faceit: bool) -> Result<(), String> {
+    mutate(&state, |c| {
+        c.settings.crosshair_undistort = undistort;
+        c.settings.hide_crosshair_with_faceit = hide_with_faceit;
+        Ok(())
     })
 }
 

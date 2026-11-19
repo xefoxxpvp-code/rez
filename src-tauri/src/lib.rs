@@ -33,11 +33,29 @@ pub struct AppState {
     pub input: mpsc::Sender<Input>,
     pub status: Mutex<StatusEvent>,
     pub display: Arc<Win32Display>,
+    /// Imported crosshair images (`%APPDATA%\REZ\crosshairs`).
+    pub crosshair_dir: PathBuf,
+}
+
+impl AppState {
+    /// Message telling the runtime the current overlay rules and settings.
+    pub fn crosshair_input(config: &Config) -> Input {
+        Input::CrosshairRulesChanged {
+            rules: config.crosshair_rules(),
+            undistort: config.settings.crosshair_undistort,
+            hide_with_faceit: config.settings.hide_crosshair_with_faceit,
+        }
+    }
 }
 
 /// Emergency shortcut: back to native resolution.
 fn restore_shortcut() -> Shortcut {
     Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT | Modifiers::SHIFT), Code::KeyR)
+}
+
+/// Crosshair show/hide shortcut.
+fn crosshair_shortcut() -> Shortcut {
+    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT | Modifiers::SHIFT), Code::KeyX)
 }
 
 /// Focuses the main window, or builds it (the WebView is destroyed when the window closes).
@@ -105,10 +123,15 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if event.state == ShortcutState::Pressed && shortcut == &restore_shortcut()
-                        && let Some(state) = app.try_state::<AppState>() {
-                            let _ = state.input.send(Input::RestoreRequested);
-                        }
+                    if event.state != ShortcutState::Pressed {
+                        return;
+                    }
+                    let Some(state) = app.try_state::<AppState>() else { return };
+                    if shortcut == &restore_shortcut() {
+                        let _ = state.input.send(Input::RestoreRequested);
+                    } else if shortcut == &crosshair_shortcut() {
+                        let _ = state.input.send(Input::ToggleCrosshair);
+                    }
                 })
                 .build(),
         )
@@ -126,6 +149,10 @@ pub fn run() {
             let watch_tx = tx.clone();
             let icons_snapshot = config_path.with_file_name("icons-snapshot.json");
             Win32Layout::recover_icons_from_disk(&icons_snapshot);
+            let crosshair_dir = config_path.with_file_name("crosshairs");
+            if let Err(e) = std::fs::create_dir_all(&crosshair_dir) {
+                log::warn!("cannot create {}: {e}", crosshair_dir.display());
+            }
             Runtime::new(
                 config.rules(),
                 display.clone(),
@@ -133,7 +160,12 @@ pub fn run() {
                 Box::new(move |pid| win::events::watch_process(pid, watch_tx.clone())),
                 Box::new(move |status| on_status(&handle, status)),
             )
+            .with_crosshair(
+                Box::new(win::overlay::Win32Overlay::spawn(crosshair_dir.clone())),
+                Box::new(|| win::process::is_any_running(&win::process::FACEIT_PROCESSES)),
+            )
             .spawn(rx);
+            let _ = tx.send(AppState::crosshair_input(&config));
             win::events::start(tx.clone())?;
 
             app.manage(AppState {
@@ -142,10 +174,14 @@ pub fn run() {
                 input: tx,
                 status: Mutex::new(StatusEvent::Idle),
                 display,
+                crosshair_dir,
             });
             tray::create(app.handle())?;
             if let Err(e) = app.global_shortcut().register(restore_shortcut()) {
                 log::warn!("emergency shortcut Ctrl+Alt+Shift+R unavailable: {e}");
+            }
+            if let Err(e) = app.global_shortcut().register(crosshair_shortcut()) {
+                log::warn!("crosshair shortcut Ctrl+Alt+Shift+X unavailable: {e}");
             }
             if !minimized {
                 show_main_window(app.handle());
@@ -155,6 +191,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::list_displays,
+            commands::list_crosshairs,
+            commands::save_crosshair,
+            commands::delete_crosshair,
+            commands::preview_crosshair,
+            commands::set_crosshair_settings,
             commands::get_game_art,
             commands::add_game,
             commands::update_game,
