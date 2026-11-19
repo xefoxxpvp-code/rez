@@ -14,15 +14,15 @@ Complète [2026-11-16-rez-design.md](2026-11-16-rez-design.md), sections 2 et 3.
 
 - `Config.crosshairs: Vec<Crosshair>`.
 - Au premier lancement (`settings.crosshairsSeeded == false`), REZ ajoute 5 presets, puis passe le drapeau à `true` : si l'utilisateur supprime tout, rien ne revient.
-- Les 5 presets (unités en px à 1080p) :
+- Les 5 presets reprennent les styles les plus utilisés par les pros (décision de l'utilisateur, 2026-11-19) : petits, statiques, sans contour, surtout cyan ou vert. Unités en px à 1080p. Aucun nom de joueur n'est utilisé.
 
 | # | Nom | Couleur | Forme |
 |---|---|---|---|
-| 1 | Classique | vert `#00FF00` | 4 branches : longueur 6, épaisseur 2, écart 3, contour noir 1 px |
-| 2 | Point | blanc `#FFFFFF` | point de 4 px, contour noir 1 px, sans branches |
-| 3 | T | cyan `#00FFFF` | style T (sans branche haute) : longueur 7, épaisseur 2, écart 4, contour 1 |
-| 4 | Cercle | rose `#FF4FD8` | anneau rayon 14 et épaisseur 2, point de 3 px, sans branches, contour 1 |
-| 5 | Compact | jaune `#FFFF00` | 4 branches : longueur 4, épaisseur 2, écart 0, contour 1 |
+| 1 | Cyan pro | cyan `#00FFFF` | longueur 4, épaisseur 2, écart 2, sans contour (classique Valorant pro) |
+| 2 | Plus sans écart | blanc `#FFFFFF` | longueur 4, épaisseur 2, écart 0, sans contour |
+| 3 | Vert statique | vert CS `#32FA32` | longueur 4, épaisseur 2, écart 2, sans contour (consensus CS2 : taille 2, écart −3, épaisseur 1) |
+| 4 | Point | blanc `#FFFFFF` | point de 4 px, contour noir 1 px |
+| 5 | Fin jaune | jaune `#FAFA32` | longueur 5, épaisseur 1, écart 2, sans contour (CS2, épaisseur 0) |
 
 - Opérations : créer, dupliquer, renommer, supprimer, éditer.
 - Supprimer un crosshair utilisé par un jeu remet ce jeu sur « Aucun ».

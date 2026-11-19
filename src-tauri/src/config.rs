@@ -230,9 +230,9 @@ mod tests {
         let mut c = Config::default();
         c.seed_crosshairs();
         let mut g = GameEntry::from_exe_path(r"C:\A\cs2.exe", &[], m(1920, 1080, 60));
-        g.crosshair_id = Some("preset-t".into());
+        g.crosshair_id = Some("preset-plus".into());
         c.add_game(g).unwrap();
-        c.delete_crosshair("preset-t").unwrap();
+        c.delete_crosshair("preset-plus").unwrap();
         assert_eq!(c.games[0].crosshair_id, None);
         assert_eq!(c.delete_crosshair("nope"), Err(ConfigError::NotFound("nope".into())));
     }

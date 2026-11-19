@@ -136,7 +136,7 @@ mod tests {
         let mut d = CrosshairDirector::new(rules(), true, true);
         let spec = shown(d.on_foreground(10, "CS2.EXE", NATIVE, false));
         assert_eq!(spec.pid, 10);
-        assert_eq!(spec.crosshair.name, "Classique");
+        assert_eq!(spec.crosshair.name, presets()[0].name);
         assert_eq!(spec.native, NATIVE);
         assert!(spec.undistort);
     }
@@ -184,7 +184,7 @@ mod tests {
         let mut d = CrosshairDirector::new(rules(), true, true);
         d.on_foreground(10, "cs2.exe", NATIVE, false);
         let new_rules = vec![CrosshairRule { exe_name_lower: "cs2.exe".into(), crosshair: presets()[2].clone() }];
-        assert_eq!(shown(d.on_rules(new_rules, true, true, false)).crosshair.name, "T");
+        assert_eq!(shown(d.on_rules(new_rules, true, true, false)).crosshair.name, presets()[2].name);
     }
 
     #[test]

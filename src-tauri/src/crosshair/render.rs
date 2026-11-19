@@ -187,10 +187,28 @@ pub fn render_png(c: &Crosshair, scale: f32, image_dir: &Path) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crosshair::presets::presets;
 
+    use crate::crosshair::model::{Circle, Dot, Lines};
+
+    /// Fixed shapes for geometry tests (independent of the shipped presets).
     fn preset(name: &str) -> Crosshair {
-        presets().into_iter().find(|c| c.name == name).unwrap()
+        let base = |color: &str| Crosshair { color: color.into(), ..Default::default() };
+        match name {
+            "Classique" => Crosshair { inner: Lines { length: 6.0, thickness: 2.0, gap: 3.0, ..Lines::default() }, ..base("#00FF00") },
+            "T" => Crosshair { inner: Lines { length: 7.0, thickness: 2.0, gap: 4.0, ..Lines::default() }, t_style: true, ..base("#00FFFF") },
+            "Point" => Crosshair {
+                inner: Lines { enabled: false, ..Lines::default() },
+                dot: Dot { enabled: true, size: 4.0, opacity: 1.0 },
+                ..base("#FFFFFF")
+            },
+            "Cercle" => Crosshair {
+                inner: Lines { enabled: false, ..Lines::default() },
+                dot: Dot { enabled: true, size: 3.0, opacity: 1.0 },
+                circle: Circle { enabled: true, radius: 14.0, thickness: 2.0, opacity: 1.0 },
+                ..base("#FF4FD8")
+            },
+            _ => panic!("unknown fixture {name}"),
+        }
     }
 
     /// Straight-alpha RGBA of pixel (x, y).
