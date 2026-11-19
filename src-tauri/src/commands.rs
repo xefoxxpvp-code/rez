@@ -155,6 +155,16 @@ pub fn crosshair_share_code(crosshair: Crosshair) -> String {
     crate::crosshair::share::encode(&crosshair)
 }
 
+/// Before installing an update: native resolution back, desktop layout restored, overlay
+/// hidden (REZ is in the foreground when the user clicks). Waits at most 3 s; REZ keeps
+/// running if the update fails.
+#[tauri::command]
+pub async fn prepare_update(state: State<'_, AppState>) -> Result<(), String> {
+    let (ack, ack_rx) = std::sync::mpsc::channel();
+    state.input.send(Input::PrepareForUpdate { ack }).map_err(|e| e.to_string())?;
+    ack_rx.recv_timeout(std::time::Duration::from_secs(3)).map_err(|_| "REZ n'a pas pu se préparer à temps".to_string())
+}
+
 #[tauri::command]
 pub fn set_crosshair_settings(state: State<AppState>, undistort: bool, hide_with_faceit: bool) -> Result<(), String> {
     mutate(&state, |c| {

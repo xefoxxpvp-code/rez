@@ -119,6 +119,8 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().level(log::LevelFilter::Info).build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -199,6 +201,7 @@ pub fn run() {
             commands::import_crosshair_code,
             commands::import_crosshair_image,
             commands::crosshair_share_code,
+            commands::prepare_update,
             commands::get_game_art,
             commands::add_game,
             commands::update_game,

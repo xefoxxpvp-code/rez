@@ -89,5 +89,16 @@
       "cs2": "Code CS2",
       "rez": "Code REZ"
     }
+  },
+  "update": {
+    "hint": "REZ se met à jour sur place et redémarre tout seul, sans réinstallation.",
+    "install": "Mettre à jour",
+    "title": "Version",
+    "current": "REZ {{version}}",
+    "check": "Rechercher une mise à jour",
+    "checking": "Recherche en cours…",
+    "upToDate": "REZ est à jour.",
+    "available": "Une mise à jour est disponible : utilise le bouton en haut de la fenêtre.",
+    "error": "Impossible de vérifier les mises à jour : {{message}}"
   }
 }

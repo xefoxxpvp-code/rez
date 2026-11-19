@@ -22,6 +22,8 @@ pub enum Input {
     CrosshairRulesChanged { rules: Vec<CrosshairRule>, undistort: bool, hide_with_faceit: bool },
     /// Session show/hide of the crosshair (hotkey).
     ToggleCrosshair,
+    /// Before an in-app update: back to native, pending layout restored, then ack. Keeps running.
+    PrepareForUpdate { ack: std::sync::mpsc::Sender<()> },
     Shutdown { ack: std::sync::mpsc::Sender<()> },
 }
 
@@ -165,6 +167,10 @@ impl Runtime {
                 }
             }
             Input::RestoreRequested => Event::RestoreRequested,
+            Input::PrepareForUpdate { ack: a } => {
+                ack = Some(a);
+                Event::RestoreRequested
+            }
             Input::RulesChanged(rules) => {
                 self.suspended = false;
                 Event::RulesChanged(rules)
@@ -710,6 +716,22 @@ mod tests {
         h.rt.handle_input(Input::DisplayMaybeChanged, t0 + Duration::from_millis(100)); // incident → suspended
         h.rt.handle_input(fg(99, "chrome.exe"), t0 + Duration::from_millis(200));
         assert_eq!(last(&log).as_deref(), Some("hide"));
+    }
+
+    #[test]
+    fn prepare_for_update_restores_flushes_and_keeps_running() {
+        let mut h = harness(false);
+        let t0 = Instant::now();
+        h.rt.handle_input(fg(10, "cs2.exe"), t0);
+        let (ack, ack_rx) = std::sync::mpsc::channel();
+        h.rt.handle_input(Input::PrepareForUpdate { ack }, t0 + Duration::from_millis(10));
+        assert!(calls(&h).contains(&format!("restore {D1}")));
+        assert_eq!(h.layout.lock().unwrap().last().map(String::as_str), Some("flush"));
+        assert!(ack_rx.try_recv().is_ok());
+        // Still alive: if the download fails, REZ keeps working.
+        h.rt.handle_input(fg(99, "chrome.exe"), t0 + Duration::from_millis(20));
+        h.rt.handle_input(fg(10, "cs2.exe"), t0 + Duration::from_millis(400));
+        assert_eq!(calls(&h).iter().filter(|c| c.starts_with("apply")).count(), 2);
     }
 
     #[test]

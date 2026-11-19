@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { setAutostart, setCrosshairSettings } from "../lib/api";
 import type { Config } from "../lib/types";
+import type { useUpdater } from "../lib/update";
 
 interface Props {
   config: Config;
   onChanged: () => void;
+  updater: ReturnType<typeof useUpdater>;
 }
 
 function Key({ children }: { children: string }) {
@@ -55,10 +58,25 @@ const shortcut = (letter: string) => (
   </span>
 );
 
-export default function Settings({ config, onChanged }: Props) {
+export default function Settings({ config, onChanged, updater }: Props) {
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
   const s = config.settings;
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => {});
+  }, []);
+  const u = updater.state;
+  const updateText =
+    u.kind === "checking"
+      ? t("update.checking")
+      : u.kind === "upToDate"
+        ? t("update.upToDate")
+        : u.kind === "available"
+          ? t("update.available")
+          : u.kind === "error"
+            ? t("update.error", { message: u.message })
+            : "";
 
   const run = async (action: () => Promise<unknown>) => {
     setError(null);
@@ -103,6 +121,20 @@ export default function Settings({ config, onChanged }: Props) {
         </Row>
         <Row title={t("settings.crosshairTitle")} hint={t("settings.crosshairHotkey")}>
           {shortcut("X")}
+        </Row>
+      </div>
+
+      <h3 className="m-0 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">{t("update.title")}</h3>
+      <div className="rounded-[24px] bg-white/[0.03] p-2.5">
+        <Row title={t("update.current", { version })} hint={updateText}>
+          <button
+            type="button"
+            disabled={u.kind === "checking" || u.kind === "installing"}
+            onClick={() => void updater.checkNow()}
+            className="h-11 shrink-0 rounded-full bg-white/5 px-5 text-xs font-extrabold uppercase tracking-wide transition-colors hover:bg-white/[0.08] disabled:opacity-40"
+          >
+            {t("update.check")}
+          </button>
         </Row>
       </div>
 
