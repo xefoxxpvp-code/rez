@@ -320,3 +320,142 @@ Les tables de clés, les valeurs par défaut, le décodage CS2 et les vecteurs d
   - en 1440x1080 étiré, il reste carré à l'écran.
 - [ ] **Build** : `CARGO_TARGET_DIR=src-tauri/target-dist npm run tauri build` → installateur.
 - [ ] **Note** : `docs/superpowers/notes/2026-11-16-phase2-verification.md`, puis commit.
+
+---
+
+### Task 9 : Mise à jour dans l'app (demande du 2026-11-19)
+
+L'utilisateur met à jour REZ depuis l'app, sans réinstaller.
+
+**Files :**
+- Modify : `Cargo.toml` (`tauri-plugin-updater = "2"`, `tauri-plugin-process = "2"`), `lib.rs`, `tauri.conf.json`, `capabilities/default.json`, `package.json`
+- Create : `src/components/UpdateBanner.tsx`, `.github/workflows/release.yml`
+
+**Décisions :**
+- **Clé de signature** :
+  - générée par `npx tauri signer generate --ci -w %USERPROFILE%\.tauri\rez-updater.key` ;
+  - la clé privée ne va **jamais** dans le dépôt ;
+  - la clé publique va dans `tauri.conf.json > plugins.updater.pubkey`.
+- **Endpoint** : `https://github.com/xefoxxpvp-code/rez/releases/latest/download/latest.json`. À confirmer par l'utilisateur avant toute création de dépôt ou publication.
+- **Bundle** : `createUpdaterArtifacts: true`. Updater en `windows.installMode: "passive"`.
+- **Avant l'install** : `on_before_exit` envoie `Shutdown` au runtime, qui remet le natif et vide la disposition du bureau en attente, puis attend l'ack (2 s max).
+- **Interface** :
+  - au démarrage, `check()` ; si une version est disponible, une bannière « Mise à jour X disponible » avec un bouton « Mettre à jour » (progression, puis `relaunch()`) ;
+  - dans Réglages, la version actuelle et un bouton « Rechercher une mise à jour ».
+- **CI** :
+  - `release.yml` se déclenche sur un tag `v*` ;
+  - il utilise `tauri-apps/tauri-action@v0` avec `includeUpdaterJson`, sur `windows-latest` ;
+  - secrets requis : `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (vide).
+- **Version** : 0.2.0 dans `tauri.conf.json`, `Cargo.toml` et `package.json`.
+
+- [ ] **Step 1** : `vitest` sur `updateLabel(version)` → `"Mise à jour 0.3.0 disponible"`. RED puis GREEN.
+- [ ] **Step 2** : plugins, configuration, bannière, réglages, workflow.
+- [ ] **Step 3** : `tauri build` produit `REZ_0.2.0_x64-setup.exe` + `.sig`. Vérifier que `latest.json` peut être généré : le workflow le produit, en local seul le `.sig` est vérifié.
+- [ ] **Step 4** : commit `feat(app): in-app updates`.
+
+---
+
+## Annexe A : formats d'import (recherche du 2026-11-19)
+
+Les références sous licence MIT peuvent être portées en citant la source (`csgo-sharecode` d'akiver, `genesy/crosshair-codes`, `sciencejiho/valorant-crosshair`). Les dépôts sans licence peuvent être lus, mais pas copiés.
+
+### CS2 : conteneur commun
+- **Dictionnaire base 57** : `ABCDEFGHJKLMNOPQRSTUVWXYZabcdefhijkmnopqrstuvwxyz23456789`.
+- **Décodage** :
+  1. on retire le préfixe (`CSGO-` ou `CS`) et les tirets ;
+  2. on **inverse** les caractères ;
+  3. `big = big*57 + idx` ;
+  4. on écrit `big` en big-endian sur `n` octets ;
+  5. si `big ≥ 2^(8n)`, on refuse.
+- **Checksum** : `b0 == (somme b1..) % 256`. La version est dans `b1`.
+- **Formats** :
+  - `CSGO-` : 25 caractères → 18 octets. On accepte la version 1. Les versions 3 et 4 sont refusées avec un message.
+  - `CS` : 44 caractères → 32 octets, version 1.
+
+### CS2 legacy-v1 (`CSGO-`)
+
+**Champs** :
+
+| Champ | Lecture |
+|---|---|
+| gap | `i8(b2)/10` |
+| épaisseur du contour | `b3/2` |
+| RGBA | `b4..b7` |
+| index couleur | `b10&7` |
+| contour | `b10&8` |
+| épaisseur | `b12/10` |
+| point | `b13&0x10` |
+| alpha activé | `b13&0x40` |
+| style T | `b13&0x80` |
+| style | `(b13&0x0E)>>1` |
+| longueur | `(b14 \| (b15&0x1F)<<8)/10` |
+
+**Couleurs prédéfinies** : 0 `#FA3232`, 1 `#32FA32`, 2 `#FAFA32`, 3 `#3232FA`, 4 `#32FAFA`, 5 = RGB personnalisé.
+
+**Vers le modèle** (px à 1080p, `s = 1080/480 = 2.25`) :
+- `W = max(1, roundEven(épaisseur·s))` ;
+- `L = roundEven(longueur·s)` ;
+- `d = trunc(gap + 4)` (gap non mis à l'échelle) ;
+- gap du modèle = `⌊W/2⌋ + d` ;
+- point : taille `W` ;
+- contour : épaisseur `b3/2` px ;
+- opacité : `alpha/255` si alpha activé, sinon 1.
+
+**Vecteurs** :
+1. `CSGO-Cn37R-YE7vo-pLCAL-aURmZ-z6zkG`
+   - octets `69 01 F3 04 AF 51 D5 89 06 1E 6D 54 0C F4 2E 00 00 00` ;
+   - gap −1.3, contour 2, RGBA 175/81/213/137, index 5, contour activé, épaisseur 1.2 ;
+   - point, alpha et T activés ; style 2 ; longueur 4.6.
+2. `CSGO-LibdP-VCVEd-ESayK-rSivi-2UBtG`
+   - gap 1, contour 1, RGBA 50/250/50/200, index 1, contour désactivé, épaisseur 0.5 ;
+   - tous les drapeaux désactivés ; style 3 ; longueur 5.
+
+### CS2 cs2-v1 (`CS…`, format actuel)
+
+**Champs** :
+
+| Champ | Lecture |
+|---|---|
+| hauteur d'écran `sh` | `u16le(b2,b3)`. 0 → invalide, `< 240` → 240 |
+| style | `b4&0x1F` |
+| point | `b4&0x40` |
+| T | `b4&0x80` |
+| RGBA | `b5..b8` |
+| couleur du contour | `b9..b12` |
+| épaisseur | `b13&0x3F` |
+| mode de contour | `b13>>6` (0 aucun, 1 plein, 2 demi) |
+| gap | `i16le(b14,b15)` |
+| longueur | `b16` |
+
+**Vers le modèle** : `r = 1080/sh` ; longueur, épaisseur et gap = `valeur·r` ; contour 1 px si le mode est différent de 0.
+
+**Vecteurs** :
+1. `CSvbPubOq37zTGqtsPTP5QTrp5CB4xFXiKRLfzJsm49ZRe` : sh 768, style 2, point, RGBA 255/0/0/255, contour 0, épaisseur 1, gap 0, longueur 5.
+2. `CSAB6Oby2JUDOrBRy4jRcsR6JOQdhbszKF9GuKQGhKVwAc` : sh 1440, style 9, T, contour 2, RGBA 10/20/30/200, épaisseur 12, gap −7, longueur 255.
+
+### Valorant (`0;…`)
+
+**Structure** :
+- les jetons sont séparés par `;` ;
+- le premier jeton vaut `0` ;
+- les sections sont `P` (lu), `A` et `S` (ignorés) ;
+- les globaux `s`, `p`, `c` (avant `P`) sont ignorés.
+
+**Défauts dans `P`** :
+- couleur `c` = 0 (8 = personnalisée, lue dans `u` en RRGGBBAA) ;
+- contour : `h` = 1, `t` = 1, `o` = 0.5 ;
+- point : `d` = 0, `z` = 2, `a` = 1 ;
+- lignes internes (préfixe `0`) : `b` 1, `t` 2, `l` 6, `g` 0, `v` 6, `o` 3, `a` 0.8 ;
+- lignes externes (préfixe `1`) : `b` 1, `t` 2, `l` 2, `g` 0, `v` 2, `o` 10, `a` 0.35.
+
+**Palette** : `#FFFFFF`, `#00FF00`, `#7FFF00`, `#DFFF00`, `#FFFF00`, `#00FFFF`, `#FF00FF`, `#FF0000`.
+
+**Clés dynamiques ignorées** : `0m 0s 0f 0e 1m 1s 1f 1e`, et dans `P` : `f`, `m`, `s`. Si les lignes sont affichées, on ajoute la note « crosshair fixe : l'écartement au tir et en mouvement n'est pas reproduit ». Les valeurs sont prises en px (consensus de la communauté).
+
+**Vecteurs** :
+1. `0;P;c;5;h;0;0l;4;0o;2;0a;1;0f;0;1b;0` : cyan, sans contour, interne longueur 4 / vertical `None` / épaisseur 2 / gap 2 / opacité 1, externe désactivé.
+2. `0;s;1;P;c;8;u;FF00AAFF;d;1;z;3;0g;1;0v;8;1b;0;S;c;1` :
+   - `#FF00AA`, point taille 3 ;
+   - interne longueur 6 / vertical 8 / épaisseur 2 / gap 3 / opacité 0.8 ;
+   - contour activé, 1 px, opacité 0.5 ;
+   - externe désactivé.
