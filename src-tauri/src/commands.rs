@@ -130,6 +130,31 @@ pub async fn preview_crosshair(state: State<'_, AppState>, crosshair: Crosshair)
     Ok(data_url(&png, "image/png"))
 }
 
+/// Decodes a pasted code (Valorant, CS2, REZ). Nothing is saved: the UI shows the notes first.
+#[tauri::command]
+pub fn import_crosshair_code(code: String) -> Result<crate::crosshair::import::Imported, String> {
+    crate::crosshair::import::import_code(&code)
+}
+
+/// Imports a PNG as a new crosshair (image stored in the crosshairs folder) and saves it.
+#[tauri::command]
+pub fn import_crosshair_image(state: State<AppState>, path: String) -> Result<Crosshair, String> {
+    let bytes = std::fs::read(&path).map_err(|e| format!("Image illisible : {e}"))?;
+    let file = crate::crosshair::import::import_png(&bytes, &state.crosshair_dir)?;
+    let name = std::path::Path::new(&path)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Image".into());
+    let crosshair = Crosshair { name, image: Some(file), ..Crosshair::default() };
+    save_crosshair(state, crosshair)
+}
+
+/// REZ share code of a crosshair (for "Copier le code").
+#[tauri::command]
+pub fn crosshair_share_code(crosshair: Crosshair) -> String {
+    crate::crosshair::share::encode(&crosshair)
+}
+
 #[tauri::command]
 pub fn set_crosshair_settings(state: State<AppState>, undistort: bool, hide_with_faceit: bool) -> Result<(), String> {
     mutate(&state, |c| {
