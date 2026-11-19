@@ -1,12 +1,14 @@
 import { useTranslation } from "react-i18next";
 import { useGameArt } from "../lib/useGameArt";
-import type { DisplayMode, GameEntry } from "../lib/types";
+import type { Crosshair, DisplayMode, GameEntry } from "../lib/types";
+import CrosshairPicker from "./CrosshairPicker";
 import GameArtTile from "./GameArtTile";
 import ResolutionPicker from "./ResolutionPicker";
 
 interface Props {
   game: GameEntry;
   resolutions: DisplayMode[];
+  crosshairs: Crosshair[];
   screen: { width: number; height: number };
   active: boolean;
   onChange: (game: GameEntry) => void;
@@ -30,7 +32,7 @@ function TogglePill({ on, label, onToggle }: { on: boolean; label: string; onTog
 }
 
 /** One game: its own artwork, its switches and its resolution, laid out like the reference's chapter row. */
-export default function GameCard({ game, resolutions, screen, active, onChange, onRemove }: Props) {
+export default function GameCard({ game, resolutions, crosshairs, screen, active, onChange, onRemove }: Props) {
   const { t } = useTranslation();
   const art = useGameArt(game.id);
 
@@ -67,6 +69,12 @@ export default function GameCard({ game, resolutions, screen, active, onChange, 
             on={game.keepStretched}
             label={t("games.keepStretched")}
             onToggle={() => onChange({ ...game, keepStretched: !game.keepStretched })}
+          />
+          <CrosshairPicker
+            label={t("games.crosshair", { name: game.name })}
+            crosshairs={crosshairs}
+            value={game.crosshairId}
+            onChange={(crosshairId) => onChange({ ...game, crosshairId })}
           />
         </div>
       </div>

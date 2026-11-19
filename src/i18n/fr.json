@@ -1,5 +1,9 @@
 {
-  "tabs": { "games": "Jeux", "settings": "Réglages" },
+  "tabs": {
+    "games": "Jeux",
+    "settings": "Réglages",
+    "crosshair": "Crosshair"
+  },
   "status": {
     "idle": "Aucun jeu étiré pour l'instant",
     "eyebrow": "Étiré en ce moment",
@@ -21,7 +25,8 @@
     "keepStretched": "Rester étiré pendant alt-tab",
     "remove": "Retirer",
     "confirmRemove": "Retirer {{name}} de REZ ?",
-    "loadError": "Impossible de lire les écrans : {{error}}"
+    "loadError": "Impossible de lire les écrans : {{error}}",
+    "crosshair": "Crosshair de {{name}}"
   },
   "settings": {
     "titleStart": "Mes",
@@ -30,6 +35,59 @@
     "autostartHint": "REZ démarre réduit près de l'horloge.",
     "hotkeyTitle": "Raccourci d'urgence",
     "hotkey": "Remet la résolution native, même en pleine partie.",
-    "trayHint": "Fermer la fenêtre laisse REZ actif près de l'horloge. Pour le quitter : clic droit sur son icône, puis Quitter."
+    "trayHint": "Fermer la fenêtre laisse REZ actif près de l'horloge. Pour le quitter : clic droit sur son icône, puis Quitter.",
+    "crosshairTitle": "Crosshair",
+    "undistort": "Garder le crosshair carré en étiré",
+    "undistortHint": "Sans ça, le crosshair s'élargit comme celui du jeu quand l'écran est étiré.",
+    "faceit": "Cacher le crosshair si FACEIT tourne",
+    "faceitHint": "Certains anti-cheats et tournois interdisent les crosshairs externes.",
+    "crosshairHotkey": "Affiche ou cache le crosshair, même en pleine partie."
+  },
+  "xh": {
+    "titleStart": "Mes",
+    "titleEnd": "crosshairs",
+    "new": "Nouveau",
+    "newName": "Nouveau crosshair",
+    "paste": "Coller un code",
+    "importImage": "Importer une image",
+    "pickImage": "Choisir une image PNG",
+    "duplicate": "Dupliquer",
+    "copyCode": "Copier le code REZ",
+    "copied": "Code REZ copié.",
+    "delete": "Supprimer",
+    "confirmDelete": "Supprimer {{name}} ? Les jeux qui l'utilisent n'auront plus de crosshair.",
+    "unused": "Aucun jeu",
+    "empty": "Crée un crosshair ou colle le code de celui que tu utilises en jeu.",
+    "none": "Aucun crosshair",
+    "name": "Nom du crosshair",
+    "customColor": "Couleur personnalisée",
+    "lines": "Branches",
+    "outer": "Branches externes",
+    "outline": "Contour",
+    "dot": "Point central",
+    "circle": "Cercle",
+    "image": "Image",
+    "offset": "Décalage",
+    "shown": "Affiché",
+    "tStyle": "Style T",
+    "length": "Longueur",
+    "thickness": "Épaisseur",
+    "gap": "Écart",
+    "opacity": "Opacité",
+    "size": "Taille",
+    "radius": "Rayon",
+    "pasteTitle": "Coller un code de crosshair",
+    "pasteTitleStart": "Coller un",
+    "pasteTitleEnd": "code",
+    "pasteHint": "Code Valorant (0;P;…), CS2 (CS… ou CSGO-…) ou REZ (REZ1-…).",
+    "waitingCode": "L'aperçu apparaît dès que le code est reconnu.",
+    "unknownCode": "Ce n'est pas un code reconnu.",
+    "cancel": "Annuler",
+    "add": "Ajouter",
+    "kind": {
+      "valorant": "Code Valorant",
+      "cs2": "Code CS2",
+      "rez": "Code REZ"
+    }
   }
 }

@@ -81,6 +81,7 @@ export default function Games({ config, resolutions, display, screen, status, on
                 key={g.id}
                 game={g}
                 resolutions={resolutions}
+                crosshairs={config.crosshairs}
                 screen={screen}
                 active={status.kind === "active" && status.gameId === g.id}
                 onChange={(game) => void run(() => updateGame(game))}

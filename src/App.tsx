@@ -4,10 +4,11 @@ import RezLogo from "./components/RezLogo";
 import StatusBar from "./components/StatusBar";
 import { getConfig, getStatus, listDisplays, onStatus } from "./lib/api";
 import type { Config, DisplayInfo, StatusEvent } from "./lib/types";
+import CrosshairPage from "./pages/Crosshair";
 import Games from "./pages/Games";
 import Settings from "./pages/Settings";
 
-type Tab = "games" | "settings";
+type Tab = "games" | "crosshair" | "settings";
 
 export default function App() {
   const { t } = useTranslation();
@@ -63,6 +64,14 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={tabClass("crosshair")}
+            aria-current={tab === "crosshair"}
+            onClick={() => setTab("crosshair")}
+          >
+            {t("tabs.crosshair")}
+          </button>
+          <button
+            type="button"
             className={tabClass("settings")}
             aria-current={tab === "settings"}
             onClick={() => setTab("settings")}
@@ -88,6 +97,8 @@ export default function App() {
               status={status}
               onChanged={refresh}
             />
+          ) : tab === "crosshair" ? (
+            <CrosshairPage config={config} onChanged={refresh} />
           ) : (
             <Settings config={config} onChanged={refresh} />
           )
