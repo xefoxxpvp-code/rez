@@ -94,7 +94,8 @@ pub fn render(c: &Crosshair, scale: f32, x_factor: f32, image_dir: &Path) -> Rgb
     // Half-size of the drawing, in pixels.
     let mut extent = 0i32;
     for (_, a) in &line_sets {
-        extent = extent.max(a.gap_x + a.len_x).max(a.gap_y + a.len_y);
+        // A negative gap puts the arms on the other side of the center: size by magnitude.
+        extent = extent.max(a.gap_x.abs() + a.len_x).max(a.gap_y.abs() + a.len_y);
     }
     let dot = px_round(c.dot.size * scale).max(1);
     if c.dot.enabled && image.is_none() {
@@ -299,6 +300,17 @@ mod tests {
         let ring = px(&img, cx + 14, cy);
         assert!(ring[3] > 0, "ring pixel should be painted, got {ring:?}");
         assert_eq!(px(&img, cx + 8, cy)[3], 0, "inside the ring is empty");
+    }
+
+    #[test]
+    fn negative_gap_keeps_arms_inside_the_canvas() {
+        let mut c = preset("Classique");
+        c.outline.enabled = false;
+        c.inner.gap = -5.0;
+        c.inner.length = 2.0;
+        let img = render(&c, 1.0, 1.0, none());
+        let painted = img.pixels.chunks_exact(4).filter(|p| p[3] > 0).count();
+        assert!(painted > 0, "arms must stay visible with a negative gap");
     }
 
     #[test]

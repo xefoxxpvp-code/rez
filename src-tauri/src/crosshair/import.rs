@@ -36,6 +36,8 @@ pub fn import_code(code: &str) -> Result<Imported, String> {
 }
 
 const MAX_IMAGE_SIDE: u32 = 256;
+/// Larger files are refused before decoding (a crosshair image never needs more).
+pub const MAX_IMAGE_BYTES: usize = 16 * 1024 * 1024;
 
 fn downscale(img: &RgbaImage) -> RgbaImage {
     let side = img.width.max(img.height);
@@ -60,6 +62,9 @@ fn downscale(img: &RgbaImage) -> RgbaImage {
 
 /// Validates a PNG, shrinks it to at most 256 px, stores it in `dir`; returns the file name.
 pub fn import_png(bytes: &[u8], dir: &Path) -> Result<String, String> {
+    if bytes.len() > MAX_IMAGE_BYTES {
+        return Err("Image trop lourde (16 Mo maximum).".into());
+    }
     let img = decode_png(bytes)?;
     if img.width == 0 || img.height == 0 {
         return Err("image vide".into());
@@ -92,6 +97,13 @@ mod tests {
     fn png_import_rejects_corrupt() {
         let dir = tempfile::tempdir().unwrap();
         assert!(import_png(b"not a png", dir.path()).is_err());
+    }
+
+    #[test]
+    fn png_import_rejects_heavy_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = import_png(&vec![0u8; MAX_IMAGE_BYTES + 1], dir.path()).unwrap_err();
+        assert!(err.contains("lourde"), "{err}");
     }
 
     #[test]

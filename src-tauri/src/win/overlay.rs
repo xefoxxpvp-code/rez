@@ -181,8 +181,10 @@ fn update(hwnd: HWND, s: &mut State) {
         }
         let newly_shown = !s.visible || s.drawn.is_none();
         if draw(hwnd, &next, &s.image_dir) {
+            // Re-assert topmost on every redraw: a borderless game may reorder its window when
+            // it resizes after the mode change.
+            let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
             if newly_shown {
-                let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
                 let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
             }
             s.visible = true;

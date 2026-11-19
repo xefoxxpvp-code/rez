@@ -42,6 +42,16 @@ fn file_data_url(path: &std::path::Path) -> Option<String> {
     std::fs::read(path).ok().map(|b| data_url(&b, mime))
 }
 
+/// Like [`mutate`] for crosshair-only changes: only the overlay rules are pushed, so a
+/// crosshair edit never re-enables resolution switching suspended after a monitor incident.
+fn mutate_crosshairs<T>(state: &AppState, f: impl FnOnce(&mut Config) -> Result<T, ConfigError>) -> Result<T, String> {
+    let mut config = state.config.lock().map_err(|_| "configuration verrouillée".to_string())?;
+    let out = f(&mut config).map_err(|e| e.to_string())?;
+    store::save(&state.config_path, &config).map_err(|e| format!("Impossible d'enregistrer la configuration : {e}"))?;
+    let _ = state.input.send(AppState::crosshair_input(&config));
+    Ok(out)
+}
+
 /// Applies `f` to the config, saves it and pushes the new rules to the runtime.
 fn mutate<T>(state: &AppState, f: impl FnOnce(&mut Config) -> Result<T, ConfigError>) -> Result<T, String> {
     let mut config = state.config.lock().map_err(|_| "configuration verrouillée".to_string())?;
@@ -111,7 +121,7 @@ pub fn save_crosshair(state: State<AppState>, crosshair: Crosshair) -> Result<Cr
         crosshair.id = format!("custom-{ms}");
     }
     let saved = crosshair.clone();
-    mutate(&state, |c| {
+    mutate_crosshairs(&state, |c| {
         c.upsert_crosshair(crosshair);
         Ok(())
     })?;
@@ -120,7 +130,7 @@ pub fn save_crosshair(state: State<AppState>, crosshair: Crosshair) -> Result<Cr
 
 #[tauri::command]
 pub fn delete_crosshair(state: State<AppState>, id: String) -> Result<(), String> {
-    mutate(&state, |c| c.delete_crosshair(&id))
+    mutate_crosshairs(&state, |c| c.delete_crosshair(&id))
 }
 
 /// PNG preview (data URL) drawn by the same renderer as the overlay.
@@ -138,7 +148,11 @@ pub fn import_crosshair_code(code: String) -> Result<crate::crosshair::import::I
 
 /// Imports a PNG as a new crosshair (image stored in the crosshairs folder) and saves it.
 #[tauri::command]
-pub fn import_crosshair_image(state: State<AppState>, path: String) -> Result<Crosshair, String> {
+pub async fn import_crosshair_image(state: State<'_, AppState>, path: String) -> Result<Crosshair, String> {
+    let size = std::fs::metadata(&path).map_err(|e| format!("Image illisible : {e}"))?.len();
+    if size as usize > crate::crosshair::import::MAX_IMAGE_BYTES {
+        return Err("Image trop lourde (16 Mo maximum).".into());
+    }
     let bytes = std::fs::read(&path).map_err(|e| format!("Image illisible : {e}"))?;
     let file = crate::crosshair::import::import_png(&bytes, &state.crosshair_dir)?;
     let name = std::path::Path::new(&path)
@@ -167,7 +181,7 @@ pub async fn prepare_update(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn set_crosshair_settings(state: State<AppState>, undistort: bool, hide_with_faceit: bool) -> Result<(), String> {
-    mutate(&state, |c| {
+    mutate_crosshairs(&state, |c| {
         c.settings.crosshair_undistort = undistort;
         c.settings.hide_crosshair_with_faceit = hide_with_faceit;
         Ok(())

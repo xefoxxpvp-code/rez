@@ -22,7 +22,7 @@ pub fn encode_png(rgba: &[u8], width: u32, height: u32) -> Result<Vec<u8>, Strin
 }
 
 /// Images wider or taller than this are refused before any pixel buffer is allocated.
-pub const MAX_DECODE_SIDE: u32 = 8192;
+pub const MAX_DECODE_SIDE: u32 = 4096;
 
 /// Decodes any 8-bit PNG to straight-alpha RGBA.
 pub fn decode_png(bytes: &[u8]) -> Result<RgbaImage, String> {

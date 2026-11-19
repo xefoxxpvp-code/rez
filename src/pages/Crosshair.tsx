@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import CrosshairEditor from "../components/CrosshairEditor";
 import CrosshairPreview from "../components/CrosshairPreview";
 import PasteCodeDialog from "../components/PasteCodeDialog";
 import { crosshairShareCode, deleteCrosshair, importCrosshairImage, pickPng, saveCrosshair } from "../lib/api";
+import { createAutosave } from "../lib/autosave";
 import type { Config, Crosshair as CrosshairModel } from "../lib/types";
 
 interface Props {
@@ -35,7 +36,13 @@ export default function Crosshair({ config, onChanged }: Props) {
   const [draft, setDraft] = useState<CrosshairModel | null>(null);
   const [pasting, setPasting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const saveTimer = useRef<number | undefined>(undefined);
+
+  const autosave = useMemo(
+    () => createAutosave<CrosshairModel>((c) => saveCrosshair(c).then(onChanged).catch((e) => setMessage(String(e))), 400),
+    [onChanged],
+  );
+  // Never lose the last edit when leaving the page.
+  useEffect(() => () => autosave.flush(), [autosave]);
 
   const selected = config.crosshairs.find((c) => c.id === selectedId) ?? null;
   useEffect(() => {
@@ -58,10 +65,12 @@ export default function Crosshair({ config, onChanged }: Props) {
 
   const edit = (c: CrosshairModel) => {
     setDraft(c);
-    window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => {
-      saveCrosshair(c).then(onChanged).catch(report);
-    }, 400);
+    autosave.schedule(c);
+  };
+
+  const select = (id: string) => {
+    autosave.flush(); // save the previous crosshair's last change before switching
+    setSelectedId(id);
   };
 
   const usedBy = (id: string) => config.games.filter((g) => g.crosshairId === id).map((g) => g.name);
@@ -118,7 +127,7 @@ export default function Crosshair({ config, onChanged }: Props) {
               <button
                 type="button"
                 aria-pressed={c.id === selectedId}
-                onClick={() => setSelectedId(c.id)}
+                onClick={() => select(c.id)}
                 className={`flex w-full items-center gap-3 rounded-[22px] p-2 pr-3 text-left transition-colors ${
                   c.id === selectedId ? "bg-white/10" : "bg-white/[0.03] hover:bg-white/[0.06]"
                 }`}
@@ -158,6 +167,9 @@ export default function Crosshair({ config, onChanged }: Props) {
                 className="ml-auto h-10 rounded-xl bg-red-500/10 px-6 text-xs font-bold uppercase tracking-[0.1em] text-red-500 transition-colors hover:bg-red-500/20"
                 onClick={async () => {
                   if (!window.confirm(t("xh.confirmDelete", { name: draft.name }))) return;
+                  // A pending save of this crosshair would bring it back after deletion.
+                  if (autosave.pending()?.id === draft.id) autosave.cancel();
+                  else autosave.flush();
                   try {
                     await deleteCrosshair(draft.id);
                     setSelectedId(config.crosshairs.find((c) => c.id !== draft.id)?.id ?? null);

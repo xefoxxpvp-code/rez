@@ -61,6 +61,9 @@ pub fn parse(code: &str) -> Result<Imported, String> {
         }
         i += 2;
     }
+    if primary.is_empty() {
+        return Err("Code Valorant sans réglage de crosshair principal (section P).".into());
+    }
     let keys = Keys(primary);
 
     let color_index = keys.num("c", 0.0) as usize;
@@ -164,5 +167,7 @@ mod tests {
         assert!(parse("hello").is_err());
         assert!(parse("1;P;c;5").is_err());
         assert!(parse("0;P;c").is_err(), "dangling key");
+        assert!(parse("0;").is_err(), "no primary settings at all");
+        assert!(parse("0;s;1;S;c;1").is_err(), "no primary section");
     }
 }
