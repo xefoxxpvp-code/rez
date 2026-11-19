@@ -108,7 +108,53 @@ impl Default for Crosshair {
     }
 }
 
+/// Upper bound for any size in the model (px at 1080p). Imported or edited values beyond it
+/// are clamped, so a hostile code can never make the renderer allocate a huge canvas.
+pub const MAX_PX: f32 = 200.0;
+
+fn px(v: f32, lo: f32) -> f32 {
+    if v.is_nan() { 0f32.clamp(lo, MAX_PX) } else { v.clamp(lo, MAX_PX) }
+}
+
+fn unit(v: f32) -> f32 {
+    if v.is_nan() { 1.0 } else { v.clamp(0.0, 1.0) }
+}
+
+impl Lines {
+    fn sanitized(&self) -> Lines {
+        Lines {
+            enabled: self.enabled,
+            length: px(self.length, 0.0),
+            vertical_length: self.vertical_length.map(|v| px(v, 0.0)),
+            thickness: px(self.thickness, 0.0),
+            gap: px(self.gap, -50.0),
+            opacity: unit(self.opacity),
+        }
+    }
+}
+
 impl Crosshair {
+    /// Same crosshair with every number finite and within sane bounds.
+    pub fn sanitized(&self) -> Crosshair {
+        Crosshair {
+            inner: self.inner.sanitized(),
+            outer: self.outer.sanitized(),
+            outline: Outline { enabled: self.outline.enabled, thickness: px(self.outline.thickness, 0.0).min(10.0), opacity: unit(self.outline.opacity) },
+            dot: Dot { enabled: self.dot.enabled, size: px(self.dot.size, 0.0), opacity: unit(self.dot.opacity) },
+            circle: Circle {
+                enabled: self.circle.enabled,
+                radius: px(self.circle.radius, 0.0),
+                thickness: px(self.circle.thickness, 0.0),
+                opacity: unit(self.circle.opacity),
+            },
+            image_scale: if self.image_scale.is_nan() { 1.0 } else { self.image_scale.clamp(0.01, 10.0) },
+            image_opacity: unit(self.image_opacity),
+            offset_x: self.offset_x.clamp(-500, 500),
+            offset_y: self.offset_y.clamp(-500, 500),
+            ..self.clone()
+        }
+    }
+
     /// Color as RGB; an invalid value falls back to white.
     pub fn rgb(&self) -> (u8, u8, u8) {
         let hex = self.color.trim_start_matches('#');
@@ -123,6 +169,30 @@ impl Crosshair {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sanitized_clamps_hostile_values() {
+        let mut c = Crosshair::default();
+        c.inner.length = f32::INFINITY;
+        c.inner.gap = f32::NAN;
+        c.inner.thickness = 1e30;
+        c.inner.opacity = -3.0;
+        c.inner.vertical_length = Some(f32::NEG_INFINITY);
+        c.circle.radius = 1e9;
+        c.dot.size = -5.0;
+        c.image_scale = 1e6;
+        c.offset_x = i32::MAX;
+        let s = c.sanitized();
+        assert_eq!(s.inner.length, MAX_PX);
+        assert_eq!(s.inner.gap, 0.0);
+        assert_eq!(s.inner.thickness, MAX_PX);
+        assert_eq!(s.inner.opacity, 0.0);
+        assert_eq!(s.inner.vertical_length, Some(0.0));
+        assert_eq!(s.circle.radius, MAX_PX);
+        assert_eq!(s.dot.size, 0.0);
+        assert!(s.image_scale <= 10.0);
+        assert!(s.offset_x <= 500);
+    }
 
     #[test]
     fn color_hex_parses() {

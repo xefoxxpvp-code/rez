@@ -42,6 +42,11 @@ pub fn decode_bytes(code: &str) -> Result<Vec<u8>, String> {
     Ok(big)
 }
 
+fn sanitize(mut imported: Imported) -> Imported {
+    imported.crosshair = imported.crosshair.sanitized();
+    imported
+}
+
 fn hex(r: u8, g: u8, b: u8) -> String {
     format!("#{r:02X}{g:02X}{b:02X}")
 }
@@ -49,9 +54,9 @@ fn hex(r: u8, g: u8, b: u8) -> String {
 pub fn parse(code: &str) -> Result<Imported, String> {
     let b = decode_bytes(code)?;
     match (b.len(), b[1]) {
-        (18, 1) => Ok(legacy_v1(&b)),
+        (18, 1) => Ok(sanitize(legacy_v1(&b))),
         (18, 3) | (18, 4) => Err("Ancien format CS2 non pris en charge : réexporte ton crosshair depuis CS2 (code CS…).".into()),
-        (32, 1) => cs2_v1(&b),
+        (32, 1) => cs2_v1(&b).map(sanitize),
         _ => Err("Version de code CS2 inconnue".into()),
     }
 }

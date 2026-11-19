@@ -22,7 +22,7 @@ pub fn decode(code: &str) -> Result<Crosshair, String> {
     let mut c: Crosshair = serde_json::from_slice(&json).map_err(|_| "Code REZ invalide")?;
     c.id.clear();
     c.image = None;
-    Ok(c)
+    Ok(c.sanitized())
 }
 
 #[cfg(test)]

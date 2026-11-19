@@ -21,11 +21,18 @@ pub fn encode_png(rgba: &[u8], width: u32, height: u32) -> Result<Vec<u8>, Strin
     Ok(out)
 }
 
+/// Images wider or taller than this are refused before any pixel buffer is allocated.
+pub const MAX_DECODE_SIDE: u32 = 8192;
+
 /// Decodes any 8-bit PNG to straight-alpha RGBA.
 pub fn decode_png(bytes: &[u8]) -> Result<RgbaImage, String> {
     let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
     decoder.set_transformations(png::Transformations::normalize_to_color8());
     let mut reader = decoder.read_info().map_err(|e| format!("image illisible : {e}"))?;
+    let header = reader.info();
+    if header.width > MAX_DECODE_SIDE || header.height > MAX_DECODE_SIDE {
+        return Err(format!("image trop grande (max {MAX_DECODE_SIDE} px de côté)"));
+    }
     let mut buf = vec![0u8; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buf).map_err(|e| format!("image illisible : {e}"))?;
     let data = &buf[..info.buffer_size()];
@@ -69,6 +76,13 @@ mod tests {
         let mut px = vec![64, 0, 0, 128];
         unpremultiply(&mut px);
         assert_eq!(px, vec![128, 0, 0, 128]); // 64*255/128 = 127.5, rounded to nearest
+    }
+
+    #[test]
+    fn decode_rejects_oversized_images_before_allocating() {
+        let wide = vec![0u8; (MAX_DECODE_SIDE as usize + 1) * 4];
+        let png = encode_png(&wide, MAX_DECODE_SIDE + 1, 1).unwrap();
+        assert!(decode_png(&png).is_err());
     }
 
     #[test]

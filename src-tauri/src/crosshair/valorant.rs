@@ -65,7 +65,12 @@ pub fn parse(code: &str) -> Result<Imported, String> {
 
     let color_index = keys.num("c", 0.0) as usize;
     let color = if color_index == 8 {
-        keys.0.get("u").filter(|u| u.len() >= 6).map(|u| format!("#{}", u[..6].to_uppercase())).unwrap_or_else(|| "#FFFFFF".into())
+        keys.0
+            .get("u")
+            .and_then(|u| u.get(..6))
+            .filter(|h| h.chars().all(|c| c.is_ascii_hexdigit()))
+            .map(|h| format!("#{}", h.to_uppercase()))
+            .unwrap_or_else(|| "#FFFFFF".into())
     } else {
         PALETTE.get(color_index).copied().unwrap_or("#FFFFFF").to_string()
     };
@@ -77,7 +82,8 @@ pub fn parse(code: &str) -> Result<Imported, String> {
         outline: Outline { enabled: keys.flag("h", true), thickness: keys.num("t", 1.0), opacity: keys.num("o", 0.5) },
         dot: Dot { enabled: keys.flag("d", false), size: keys.num("z", 2.0), opacity: keys.num("a", 1.0) },
         ..Crosshair::default()
-    };
+    }
+    .sanitized();
 
     let mut notes = Vec::new();
     if crosshair.inner.enabled || crosshair.outer.enabled {
@@ -133,6 +139,23 @@ mod tests {
     fn notes_static_limitation() {
         let imported = parse("0;P;c;5;0l;4").unwrap();
         assert!(imported.notes.iter().any(|n| n.contains("tir")));
+    }
+
+    #[test]
+    fn hostile_values_are_clamped_not_trusted() {
+        let c = parse("0;P;0l;1e30;0o;NaN;0t;inf;z;-9").unwrap().crosshair;
+        assert!(c.inner.length <= crate::crosshair::model::MAX_PX);
+        assert!(c.inner.gap.is_finite());
+        assert!(c.inner.thickness <= crate::crosshair::model::MAX_PX);
+        assert!(c.dot.size >= 0.0);
+    }
+
+    #[test]
+    fn non_ascii_custom_color_falls_back_to_white() {
+        let c = parse("0;P;c;8;u;éééééé").unwrap().crosshair;
+        assert_eq!(c.color, "#FFFFFF");
+        let c = parse("0;P;c;8;u;GGGGGGFF").unwrap().crosshair;
+        assert_eq!(c.color, "#FFFFFF");
     }
 
     #[test]

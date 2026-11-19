@@ -73,9 +73,15 @@ fn load_image(c: &Crosshair, image_dir: &Path) -> Option<RgbaImage> {
     decode_png(&bytes).ok()
 }
 
+/// Largest canvas side the renderer will ever allocate.
+pub const MAX_CANVAS: u32 = 2049;
+
 /// Renders the crosshair centered on an odd, square canvas. Pixels are premultiplied RGBA;
 /// the center pixel is (width / 2, height / 2).
 pub fn render(c: &Crosshair, scale: f32, x_factor: f32, image_dir: &Path) -> RgbaImage {
+    let c = &c.sanitized();
+    let scale = if scale.is_finite() { scale.clamp(0.1, 8.0) } else { 1.0 };
+    let x_factor = if x_factor.is_finite() { x_factor.clamp(0.1, 4.0) } else { 1.0 };
     let o = if c.outline.enabled { px_round(c.outline.thickness * scale).max(1) } else { 0 };
     let o_x = if c.outline.enabled { px_round(c.outline.thickness * scale * x_factor).max(1) } else { 0 };
     let image = load_image(c, image_dir);
@@ -103,7 +109,7 @@ pub fn render(c: &Crosshair, scale: f32, x_factor: f32, image_dir: &Path) -> Rgb
     if let Some(img) = &image {
         extent = extent.max(((img.width.max(img.height)) as f32 * img_scale / 2.0).ceil() as i32);
     }
-    extent += o + 2;
+    extent = (extent + o + 2).min((MAX_CANVAS as i32 - 1) / 2);
     let size = (2 * extent + 1) as u32;
     let center = extent;
     let mut pm = Pixmap::new(size, size).expect("non-zero canvas");
@@ -293,6 +299,16 @@ mod tests {
         let ring = px(&img, cx + 14, cy);
         assert!(ring[3] > 0, "ring pixel should be painted, got {ring:?}");
         assert_eq!(px(&img, cx + 8, cy)[3], 0, "inside the ring is empty");
+    }
+
+    #[test]
+    fn hostile_crosshair_renders_a_bounded_canvas() {
+        let mut c = preset("Classique");
+        c.inner.length = 1e30;
+        c.circle.enabled = true;
+        c.circle.radius = f32::INFINITY;
+        let img = render(&c, 4.0, 1.0, none());
+        assert!(img.width <= MAX_CANVAS && img.height <= MAX_CANVAS);
     }
 
     #[test]

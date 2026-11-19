@@ -105,7 +105,7 @@ pub fn list_crosshairs(state: State<AppState>) -> Result<Vec<Crosshair>, String>
 /// Creates (empty id) or updates a crosshair; returns it with its id.
 #[tauri::command]
 pub fn save_crosshair(state: State<AppState>, crosshair: Crosshair) -> Result<Crosshair, String> {
-    let mut crosshair = crosshair;
+    let mut crosshair = crosshair.sanitized();
     if crosshair.id.is_empty() {
         let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
         crosshair.id = format!("custom-{ms}");

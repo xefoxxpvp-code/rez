@@ -42,18 +42,20 @@ fn downscale(img: &RgbaImage) -> RgbaImage {
     if side <= MAX_IMAGE_SIDE {
         return img.clone();
     }
-    let w = (img.width * MAX_IMAGE_SIDE / side).max(1);
-    let h = (img.height * MAX_IMAGE_SIDE / side).max(1);
+    // u64 arithmetic: no overflow even for the largest accepted images.
+    let (iw, ih, max) = (img.width as u64, img.height as u64, MAX_IMAGE_SIDE as u64);
+    let w = (iw * max / side as u64).max(1);
+    let h = (ih * max / side as u64).max(1);
     let mut pixels = Vec::with_capacity((w * h * 4) as usize);
     for y in 0..h {
         for x in 0..w {
-            let sx = x * img.width / w;
-            let sy = y * img.height / h;
-            let i = ((sy * img.width + sx) * 4) as usize;
+            let sx = x * iw / w;
+            let sy = y * ih / h;
+            let i = ((sy * iw + sx) * 4) as usize;
             pixels.extend_from_slice(&img.pixels[i..i + 4]);
         }
     }
-    RgbaImage { width: w, height: h, pixels }
+    RgbaImage { width: w as u32, height: h as u32, pixels }
 }
 
 /// Validates a PNG, shrinks it to at most 256 px, stores it in `dir`; returns the file name.

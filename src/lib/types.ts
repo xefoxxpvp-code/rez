@@ -15,16 +15,54 @@ export interface GameEntry {
   height: number;
   enabled: boolean;
   keepStretched: boolean;
+  /** Crosshair shown over this game; null = none. */
+  crosshairId: string | null;
 }
 
 export interface Settings {
   autostart: boolean;
+  crosshairsSeeded: boolean;
+  crosshairUndistort: boolean;
+  hideCrosshairWithFaceit: boolean;
+}
+
+export interface Lines {
+  enabled: boolean;
+  length: number;
+  verticalLength: number | null;
+  thickness: number;
+  gap: number;
+  opacity: number;
+}
+
+export interface Crosshair {
+  id: string;
+  name: string;
+  /** #RRGGBB */
+  color: string;
+  inner: Lines;
+  outer: Lines;
+  tStyle: boolean;
+  outline: { enabled: boolean; thickness: number; opacity: number };
+  dot: { enabled: boolean; size: number; opacity: number };
+  circle: { enabled: boolean; radius: number; thickness: number; opacity: number };
+  image: string | null;
+  imageScale: number;
+  imageOpacity: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+export interface Imported {
+  crosshair: Crosshair;
+  notes: string[];
 }
 
 export interface Config {
   version: number;
   games: GameEntry[];
   settings: Settings;
+  crosshairs: Crosshair[];
 }
 
 export interface DisplayInfo {
