@@ -217,7 +217,7 @@ fn draw(hwnd: HWND, d: &Drawn, image_dir: &std::path::Path) -> bool {
             Ok(bitmap) if !bits.is_null() => {
                 // Premultiplied RGBA → premultiplied BGRA.
                 let dst = std::slice::from_raw_parts_mut(bits as *mut u8, img.pixels.len());
-                for (d, p) in dst.chunks_exact_mut(4).zip(img.pixels.chunks_exact(4)) {
+                for (d, p) in dst.as_chunks_mut::<4>().0.iter_mut().zip(img.pixels.as_chunks::<4>().0) {
                     d.copy_from_slice(&[p[2], p[1], p[0], p[3]]);
                 }
                 let old = SelectObject(mem, HGDIOBJ(bitmap.0));

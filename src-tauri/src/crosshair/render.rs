@@ -171,7 +171,7 @@ pub fn render(c: &Crosshair, scale: f32, x_factor: f32, image_dir: &Path) -> Rgb
 
 fn premultiplied_pixmap(img: &RgbaImage) -> Option<Pixmap> {
     let mut data = img.pixels.clone();
-    for p in data.chunks_exact_mut(4) {
+    for p in data.as_chunks_mut::<4>().0 {
         let a = p[3] as u32;
         for ch in &mut p[..3] {
             *ch = ((*ch as u32 * a + 127) / 255) as u8;
@@ -309,7 +309,7 @@ mod tests {
         c.inner.gap = -5.0;
         c.inner.length = 2.0;
         let img = render(&c, 1.0, 1.0, none());
-        let painted = img.pixels.chunks_exact(4).filter(|p| p[3] > 0).count();
+        let painted = img.pixels.as_chunks::<4>().0.iter().filter(|p| p[3] > 0).count();
         assert!(painted > 0, "arms must stay visible with a negative gap");
     }
 

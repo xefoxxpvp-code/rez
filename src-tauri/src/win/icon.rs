@@ -14,7 +14,7 @@ use windows::Win32::UI::Shell::{
 
 /// Converts Windows BGRA pixels to RGBA.
 pub fn bgra_to_rgba(bgra: &[u8]) -> Vec<u8> {
-    bgra.chunks_exact(4).flat_map(|p| [p[2], p[1], p[0], p[3]]).collect()
+    bgra.as_chunks::<4>().0.iter().flat_map(|p| [p[2], p[1], p[0], p[3]]).collect()
 }
 
 /// Crops RGBA pixels to the bounding box of non-transparent pixels. The shell centers small
